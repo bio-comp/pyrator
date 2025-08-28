@@ -1579,7 +1579,6 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "pandera" },
-    { name = "polars" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "statsmodels" },
@@ -1592,6 +1591,7 @@ all = [
     { name = "ibis-framework", extra = ["duckdb"] },
     { name = "jax" },
     { name = "matplotlib" },
+    { name = "polars" },
     { name = "pymc" },
     { name = "seaborn" },
     { name = "sqlalchemy" },
@@ -1609,6 +1609,9 @@ database = [
 plotting = [
     { name = "matplotlib" },
     { name = "seaborn" },
+]
+polars = [
+    { name = "polars" },
 ]
 
 [package.dev-dependencies]
@@ -1633,18 +1636,19 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "pandas", specifier = ">=2.3.2" },
     { name = "pandera", specifier = ">=0.26.0" },
-    { name = "polars", specifier = ">=1.32.3" },
+    { name = "polars", marker = "extra == 'polars'", specifier = ">=1.32.3" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pymc", marker = "extra == 'bayesian'", specifier = ">=5.25.1" },
     { name = "pyrator", extras = ["bayesian"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["database"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["plotting"], marker = "extra == 'all'" },
+    { name = "pyrator", extras = ["polars"], marker = "extra == 'all'" },
     { name = "seaborn", marker = "extra == 'plotting'", specifier = ">=0.13.2" },
     { name = "sqlalchemy", marker = "extra == 'database'", specifier = ">=2.0.43" },
     { name = "statsmodels", specifier = ">=0.14.5" },
 ]
-provides-extras = ["plotting", "bayesian", "database", "all"]
+provides-extras = ["plotting", "bayesian", "database", "polars", "all"]
 
 [package.metadata.requires-dev]
 dev = [
