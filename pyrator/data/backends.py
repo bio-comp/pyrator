@@ -38,6 +38,10 @@ def has_cupy() -> bool:
     return _cupy is not None
 
 
+def has_ijson() -> bool:
+    return _try_import("ijson") is not None
+
+
 # --- Backend Dispatcher ---
 def get_xp(device: str | None = None) -> ArrayModule:
     """
