@@ -44,8 +44,8 @@ database = [
     "ibis-framework[duckdb]>=10.8.0",
     "sqlalchemy>=2.0.43",
 ]
-# Group for Polars support
-
+pandas = ["pandas>=2.3.2"]
+polars = ["ibis-framework[polars]>=10.8.0"]
 # A convenience group to install everything
 all = [
     "pyrator[plotting]",
@@ -66,8 +66,10 @@ dev = [
     "pytest-sugar>=1.1.1",
     "ruff>=0.12.11",
 ]
-pandas = ["ibis-framework[pandas]>=10.8.0", "pandas>=2.3.2"]
-polars = ["ibis-framework[polars]>=10.8.0", "polars>=1.32.3"]
+polars = [
+    "polars>=1.32.3",
+]
+
 
 [build-system]
 requires = ["hatchling"]

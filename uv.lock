@@ -1669,10 +1669,10 @@ dependencies = [
 all = [
     { name = "duckdb" },
     { name = "duckdb-engine" },
-    { name = "ibis-framework", extra = ["duckdb"] },
+    { name = "ibis-framework", extra = ["duckdb", "polars"] },
     { name = "jax" },
     { name = "matplotlib" },
-    { name = "polars" },
+    { name = "pandas" },
     { name = "pymc" },
     { name = "seaborn" },
     { name = "sqlalchemy" },
@@ -1687,12 +1687,15 @@ database = [
     { name = "ibis-framework", extra = ["duckdb"] },
     { name = "sqlalchemy" },
 ]
+pandas = [
+    { name = "pandas" },
+]
 plotting = [
     { name = "matplotlib" },
     { name = "seaborn" },
 ]
 polars = [
-    { name = "polars" },
+    { name = "ibis-framework", extra = ["polars"] },
 ]
 
 [package.dev-dependencies]
@@ -1706,12 +1709,7 @@ dev = [
     { name = "pytest-sugar" },
     { name = "ruff" },
 ]
-pandas = [
-    { name = "ibis-framework" },
-    { name = "pandas" },
-]
 polars = [
-    { name = "ibis-framework", extra = ["polars"] },
     { name = "polars" },
 ]
 
@@ -1722,20 +1720,22 @@ requires-dist = [
     { name = "duckdb-engine", marker = "extra == 'database'", specifier = ">=0.17.0" },
     { name = "ibis", specifier = ">=3.3.0" },
     { name = "ibis-framework", extras = ["duckdb"], marker = "extra == 'database'", specifier = ">=10.8.0" },
+    { name = "ibis-framework", extras = ["polars"], marker = "extra == 'polars'", specifier = ">=10.8.0" },
     { name = "jax", marker = "extra == 'bayesian'", specifier = ">=0.7.1" },
     { name = "krippendorff", specifier = ">=0.8.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "matplotlib", marker = "extra == 'plotting'", specifier = ">=3.10.5" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "orjson", specifier = ">=3.11.3" },
+    { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2.3.2" },
     { name = "pandera", specifier = ">=0.26.1" },
-    { name = "polars", marker = "extra == 'polars'", specifier = ">=1.32.3" },
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pymc", marker = "extra == 'bayesian'", specifier = ">=5.25.1" },
     { name = "pyrator", extras = ["bayesian"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["database"], marker = "extra == 'all'" },
+    { name = "pyrator", extras = ["pandas"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["plotting"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["polars"], marker = "extra == 'all'" },
     { name = "scikit-learn", specifier = ">=1.7.1" },
@@ -1744,7 +1744,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'database'", specifier = ">=2.0.43" },
     { name = "statsmodels", specifier = ">=0.14.5" },
 ]
-provides-extras = ["plotting", "bayesian", "database", "polars", "all"]
+provides-extras = ["plotting", "bayesian", "database", "pandas", "polars", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1757,14 +1757,7 @@ dev = [
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "ruff", specifier = ">=0.12.11" },
 ]
-pandas = [
-    { name = "ibis-framework", extras = ["pandas"], specifier = ">=10.8.0" },
-    { name = "pandas", specifier = ">=2.3.2" },
-]
-polars = [
-    { name = "ibis-framework", extras = ["polars"], specifier = ">=10.8.0" },
-    { name = "polars", specifier = ">=1.32.3" },
-]
+polars = [{ name = "polars", specifier = ">=1.32.3" }]
 
 [[package]]
 name = "pytensor"
