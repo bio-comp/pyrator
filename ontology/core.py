@@ -136,6 +136,25 @@ class Ontology:
         """Returns the direct parents of a node."""
         return self.parents.get(node_id, set())
 
+    def get_descendants(self, node_id: str) -> set[str]:
+        """
+        Returns all descendants of a node by traversing its children.
+        """
+        if node_id not in self.nodes:
+            return set()
+
+        descendants = set()
+        queue = deque(self.children.get(node_id, set()))
+
+        while queue:
+            child_id = queue.popleft()
+            if child_id not in descendants:
+                descendants.add(child_id)
+                # Add the grandchildren to the queue to be processed
+                queue.extend(self.children.get(child_id, set()))
+
+        return descendants
+
 
 def truncate_id_to_depth(node_id: str, depth: int, sep: str = "_") -> str:
     """Truncate a path-like ID 'a_b_c' to a given depth (1-based)."""
