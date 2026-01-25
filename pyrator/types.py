@@ -12,8 +12,7 @@ RealLike = numbers.Real  # Any real number type, e.g., float, int, numpy.float64
 # Array module protocol (NumPy/CuPy-like)
 @runtime_checkable
 class ArrayModule(Protocol):
-    """
-    A protocol for array modules like NumPy or CuPy.
+    """A protocol for array modules like NumPy or CuPy.
 
     This defines the minimal API surface that pyrator relies on to perform
     array operations, allowing the computational backend to be swappable.
@@ -21,6 +20,7 @@ class ArrayModule(Protocol):
 
     # minimal surface we rely on
     def asarray(self, obj: Any, dtype: Any | None = None) -> Any: ...
+    def empty(self, shape: Any, dtype: Any | None = None) -> Any: ...
     def zeros(self, shape: Any, dtype: Any | None = None) -> Any: ...
     def ones(self, shape: Any, dtype: Any | None = None) -> Any: ...
 
