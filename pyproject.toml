@@ -21,7 +21,7 @@ dependencies = [
     "ibis>=3.3.0",
     "krippendorff>=0.8.1",
     "loguru>=0.7.3",
-    "numpy>=2.3.2",
+    "numpy>=2.4.1",
     "orjson>=3.11.3",
     "pandera>=0.26.1",
     "pyarrow>=21.0.0",
@@ -84,7 +84,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "C90"]
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.pytest.ini_options]
