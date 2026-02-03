@@ -79,6 +79,63 @@ class Ontology:
             version=version, nodes=final_nodes, parents=parents, children=children, closure=closure
         )
 
+    def get_distance(self, u: str, v: str) -> int:
+        """
+        Calculate the structural path distance between two nodes.
+
+        Uses the formula: d(u,v) = depth(u) + depth(v) - 2 * depth(LCA).
+        In DAGs where multiple LCAs exist, the LCA with the maximum depth
+        (closest to the nodes) is selected to represent the shortest path.
+        """
+        if u == v:
+            return 0
+
+        # Ensure nodes exist
+        if u not in self.nodes or v not in self.nodes:
+            raise KeyError(f"One or both labels not found in ontology: {u}, {v}")
+
+        # Optimization: check if one is ancestor of other immediately
+        if self.is_ancestor(u, v):
+            return self.nodes[v].depth - self.nodes[u].depth
+        if self.is_ancestor(v, u):
+            return self.nodes[u].depth - self.nodes[v].depth
+
+        lcas = self.lowest_common_ancestors([u, v])
+
+        if not lcas:
+            # Fallback for disconnected components: sum of depths (distance via virtual root)
+            return self.nodes[u].depth + self.nodes[v].depth
+
+        # Tie-breaker for DAGs: use the deepest LCA (closest to leaves)
+        # to find the shortest path connection.
+        max_lca_depth = max(self.nodes[lca].depth for lca in lcas)
+
+        return self.nodes[u].depth + self.nodes[v].depth - 2 * max_lca_depth
+
+    def get_similarity(self, u: str, v: str) -> float:
+        """
+        Calculate LCA-based similarity (0.0 to 1.0).
+
+        s_lca(a,b) = 2 * depth(LCA) / (depth(a) + depth(b))
+        """
+        if u == v:
+            return 1.0
+
+        if u not in self.nodes or v not in self.nodes:
+            raise KeyError(f"One or both labels not found in ontology: {u}, {v}")
+
+        lcas = self.lowest_common_ancestors([u, v])
+        if not lcas:
+            return 0.0
+
+        max_lca_depth = max(self.nodes[lca].depth for lca in lcas)
+        denom = self.nodes[u].depth + self.nodes[v].depth
+
+        if denom == 0:
+            return 0.0  # Both are root, but u != v (unlikely in single root tree)
+
+        return (2 * max_lca_depth) / denom
+
     def expand_with_ancestors(self, labels: Iterable[str], strict: bool = False) -> set[str]:
         """Return labels ∪ all their ancestors (closure)."""
         if strict:
