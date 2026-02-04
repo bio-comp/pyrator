@@ -1,11 +1,11 @@
-from typing import Any, Callable, Iterable, List, TypeVar
+from typing import Any, Callable, Iterable, TypeVar
 
 T = TypeVar('T')
 U = TypeVar('U')
 
-def batch_data(data: Iterable[T], batch_size: int) -> Iterable[List[T]]:
+def batch_data(data: Iterable[T], batch_size: int) -> Iterable[list[T]]:
     """Batch data into chunks of a specified size."""
-    batch: List[T] = []
+    batch: list[T] = []
     for item in data:
         batch.append(item)
         if len(batch) == batch_size:
@@ -16,7 +16,7 @@ def batch_data(data: Iterable[T], batch_size: int) -> Iterable[List[T]]:
 
 def process_in_batches(
     data: Iterable[T],
-    processor: Callable[[List[T]], U],
+    processor: Callable[[list[T]], U],
     batch_size: int,
 ) -> Iterable[U]:
     """Process data in batches using the provided processor function."""
