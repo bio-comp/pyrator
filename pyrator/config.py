@@ -214,8 +214,10 @@ class BayesianSettings(BaseSettings):
                         f"GPU device index {self.gpu_device} is not available. "
                         f"Found {len(devices)} devices."
                     )
-            except ImportError:
-                print("Warning: JAX not installed. GPU acceleration is unavailable.")
+            except (ImportError, RuntimeError):
+                print(
+                    "Warning: JAX not installed or GPU unavailable. GPU acceleration is unavailable."
+                )
                 self.use_gpu = False
         return self
 
