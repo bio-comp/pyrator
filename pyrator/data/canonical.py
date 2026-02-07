@@ -17,7 +17,19 @@ def to_long_canonical(
 ) -> FrameLike:
     """Convert data to long canonical format for interrater analysis."""
 
-    if has_polars():
+    # Preserve input type if it's already a DataFrame-like
+    from pyrator.data.backends import _pd
+
+    # Use pandas path for dict/list inputs, polars only for explicit polars DataFrames
+    if (
+        has_polars()
+        and _pd is not None
+        and not isinstance(df_like, _pd.DataFrame)
+        and not isinstance(df_like, dict)
+        and not isinstance(df_like, list)
+    ):
+        import polars as pl
+
         df = to_polars(df_like)
 
         if wide_annotator_cols:
@@ -26,14 +38,27 @@ def to_long_canonical(
             if missing:
                 raise ValueError(f"Missing annotator columns: {missing}")
 
-            return df.melt(
-                id_vars=[item_col],
-                value_vars=wide_annotator_cols,
-                variable_name=annotator_col,
-                value_name=label_col,
-            ).drop_nulls(subset=[label_col])
+            # Check if df is polars or pandas and use appropriate method
+            if hasattr(df, "unpivot"):  # polars DataFrame
+                return (
+                    df.unpivot(
+                        index=[item_col],
+                        on=wide_annotator_cols,
+                        variable_name=annotator_col,
+                        value_name=label_col,
+                    )
+                    .drop_nulls(subset=[label_col])
+                    .filter(pl.col("label").is_not_null())
+                )
+            else:  # pandas DataFrame
+                return df.unpivot(
+                    index=[item_col],
+                    on=wide_annotator_cols,
+                    variable_name=annotator_col,
+                    value_name=label_col,
+                ).dropna(subset=[label_col])
 
-        # Validate columns for long format
+        # Validate columns for long format (when wide_annotator_cols is None)
         required = [item_col, annotator_col, label_col]
         missing = set(required) - set(df.columns)
         if missing:
@@ -73,7 +98,10 @@ def explode_multilabel(  # noqa: C901
 ) -> FrameLike:
     """Explode multi-label columns into separate rows."""
 
-    if has_polars():
+    # Preserve input type if it's already a DataFrame-like
+    from pyrator.data.backends import _pd
+
+    if has_polars() and not (_pd is None or isinstance(df_like, _pd.DataFrame)):
         import polars as pl
 
         df = to_polars(df_like)
@@ -99,7 +127,9 @@ def explode_multilabel(  # noqa: C901
         if mode == "json":
             logger.debug(f"Exploding {label_col} as JSON")
             # Use native JSON extraction if possible
-            return df.with_columns(pl.col(label_col).str.json_decode()).explode(label_col)
+            return df.with_columns(
+                pl.col(label_col).str.json_decode(dtype=pl.List(pl.Utf8))
+            ).explode(label_col)
 
         return df
 
@@ -114,13 +144,13 @@ def explode_multilabel(  # noqa: C901
         sample = df[label_col].dropna().iloc[0] if not df[label_col].dropna().empty else None
         if isinstance(sample, list):
             logger.debug(f"Exploding {label_col} as list type")
-            return df.explode(label_col)
+            return df.explode(label_col).dropna(subset=[label_col])
 
     # Handle delimited strings
     if mode in ("auto", "delim") and df[label_col].dtype == "object":
         logger.debug(f"Exploding {label_col} with delimiter '{delim}'")
         df[label_col] = df[label_col].astype(str).str.split(delim)
-        return df.explode(label_col)
+        return df.explode(label_col).dropna(subset=[label_col])
 
     # Handle JSON arrays
     if mode == "json":
@@ -128,6 +158,6 @@ def explode_multilabel(  # noqa: C901
 
         logger.debug(f"Exploding {label_col} as JSON")
         df[label_col] = df[label_col].apply(orjson.loads)
-        return df.explode(label_col)
+        return df.explode(label_col).dropna(subset=[label_col])
 
     return df

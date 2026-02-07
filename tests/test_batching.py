@@ -1,6 +1,7 @@
 """Tests for batch processing utilities."""
 
-from typing import List, Any
+from typing import Any, List
+
 import pytest
 
 from pyrator.data.batching import batch_data, process_in_batches

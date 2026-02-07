@@ -1,12 +1,13 @@
 """Tests for category encoder functionality."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
 
+from pyrator.data.backends import has_polars
 from pyrator.data.encoders import CategoryEncoder, Encoded
-from pyrator.data.backends import get_xp, has_polars
 
 
 class TestEncoded:

@@ -3,7 +3,7 @@
 import multiprocessing
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -360,7 +360,7 @@ class TestPyratorSettings:
             cache_dir = Path(temp_dir) / "cache"
             log_dir = Path(temp_dir) / "logs"
 
-            settings = PyratorSettings(cache_dir=cache_dir, log_dir=log_dir)
+            PyratorSettings(cache_dir=cache_dir, log_dir=log_dir)
 
             assert cache_dir.exists()
             assert log_dir.exists()

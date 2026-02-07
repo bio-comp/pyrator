@@ -1,8 +1,9 @@
 # tests/conftest.py
 
-import pytest
-import httpx
 from pathlib import Path
+
+import httpx
+import pytest
 from loguru import logger
 
 # Define the cache path for your package's test data

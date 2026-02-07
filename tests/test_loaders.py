@@ -1,15 +1,29 @@
 """Tests for data loading utilities."""
 
 import json
-import numbers
+from pathlib import Path
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
 
+from pyrator.data.backends import has_polars
+
+# Always import polars when available, otherwise create a dummy for type checking
+if has_polars():
+    import polars as pl
+else:
+    # Create a dummy pl for type checking when polars is not available
+    class DummyPl:
+        class DataFrame:
+            pass
+
+    pl = DummyPl  # type: ignore
+
+from pyrator.data.backends import has_duckdb, has_pandas, has_polars
 from pyrator.data.loaders import (
-    _validate_file,
     _escape_sql_path,
+    _validate_file,
     load_any,
     load_csv,
     load_jsonl,
@@ -18,7 +32,6 @@ from pyrator.data.loaders import (
     scan_jsonl,
     scan_parquet,
 )
-from pyrator.data.backends import has_polars, has_pandas, has_duckdb
 
 
 class TestValidateFile:
@@ -103,13 +116,9 @@ class TestLoadAny:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("a,b,c\n1,2,3\n4,5,6\n")
 
-        result = load_any(csv_file)
+        result = load_any(csv_file, prefer="pandas")
 
-        assert isinstance(result, (pd.DataFrame,))
-        if has_polars():
-            import polars as pl
-
-            assert isinstance(result, (pd.DataFrame, pl.DataFrame))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_any_tsv(self, tmp_path):
@@ -119,7 +128,7 @@ class TestLoadAny:
 
         result = load_any(tsv_file)
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_any_json(self, tmp_path):
@@ -129,7 +138,7 @@ class TestLoadAny:
 
         result = load_any(json_file)
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_any_jsonl(self, tmp_path):
@@ -139,7 +148,7 @@ class TestLoadAny:
 
         result = load_any(jsonl_file)
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_any_parquet(self, tmp_path):
@@ -153,7 +162,7 @@ class TestLoadAny:
 
         result = load_any(parquet_file)
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_any_unsupported_extension(self, tmp_path):
@@ -176,7 +185,7 @@ class TestLoadAny:
 
         # Test preferring polars
         result_polars = load_any(csv_file, prefer="polars")
-        assert isinstance(result_polars, (pd.DataFrame,))
+        assert isinstance(result_polars, (pd.DataFrame, pl.DataFrame))
 
         # Test preferring pandas
         result_pandas = load_any(csv_file, prefer="pandas")
@@ -191,13 +200,9 @@ class TestLoadCSV:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("a,b,c\n1,2,3\n4,5,6\n")
 
-        result = load_csv(csv_file)
+        result = load_csv(csv_file, prefer="pandas")
 
-        assert isinstance(result, (pd.DataFrame,))
-        if has_polars():
-            import polars as pl
-
-            assert isinstance(result, (pd.DataFrame, pl.DataFrame))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_csv_with_separator(self, tmp_path):
@@ -207,7 +212,7 @@ class TestLoadCSV:
 
         result = load_csv(csv_file, sep="\t")
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_csv_prefer_polars(self, tmp_path):
@@ -249,7 +254,7 @@ class TestLoadCSV:
             patch("pyrator.data.loaders.has_polars", return_value=False),
             patch("pyrator.data.loaders.has_pandas", return_value=False),
         ):
-            result = load_csv(csv_file)
+            result = load_csv(csv_file, prefer="pandas")
 
             # Should return a pandas DataFrame from DuckDB (since polars is mocked as unavailable)
             import pandas as pd
@@ -280,9 +285,9 @@ class TestLoadJSONL:
         jsonl_file = tmp_path / "test.jsonl"
         jsonl_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n')
 
-        result = load_jsonl(jsonl_file)
+        result = load_jsonl(jsonl_file, prefer="pandas")
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_jsonl_prefer_polars(self, tmp_path):
@@ -336,9 +341,9 @@ class TestLoadParquet:
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
         df.to_parquet(parquet_file)
 
-        result = load_parquet(parquet_file)
+        result = load_parquet(parquet_file, prefer="pandas")
 
-        assert isinstance(result, (pd.DataFrame,))
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
 
     def test_load_parquet_prefer_polars(self, tmp_path):
@@ -382,7 +387,7 @@ class TestLoadParquet:
 
         # Mock polars as unavailable
         with patch("pyrator.data.loaders.has_polars", return_value=False):
-            result = load_parquet(parquet_file)
+            result = load_parquet(parquet_file, prefer="pandas")
 
             # Should return a pandas DataFrame from DuckDB (since polars is mocked as unavailable)
             import pandas as pd
@@ -637,7 +642,14 @@ class TestIntegration:
 
         # Scan in chunks and combine
         chunks = list(scan_csv(csv_file, chunk_size=2))
-        combined_data = pd.concat(chunks, ignore_index=True) if has_pandas() else None
+
+        # Handle both polars and pandas DataFrames
+        if has_polars() and isinstance(chunks[0], pl.DataFrame):
+            combined_data = pl.concat(chunks)
+        elif has_pandas():
+            combined_data = pd.concat(chunks, ignore_index=True)
+        else:
+            combined_data = None
 
         if combined_data is not None:
             # Should have same number of rows

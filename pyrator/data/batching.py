@@ -1,10 +1,14 @@
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Callable, Iterable, TypeVar
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
+
 
 def batch_data(data: Iterable[T], batch_size: int) -> Iterable[list[T]]:
     """Batch data into chunks of a specified size."""
+    if batch_size <= 0:
+        return  # No batches for non-positive batch sizes
+
     batch: list[T] = []
     for item in data:
         batch.append(item)
@@ -13,6 +17,7 @@ def batch_data(data: Iterable[T], batch_size: int) -> Iterable[list[T]]:
             batch = []
     if batch:
         yield batch
+
 
 def process_in_batches(
     data: Iterable[T],

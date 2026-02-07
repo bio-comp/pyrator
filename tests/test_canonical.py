@@ -1,11 +1,11 @@
 """Tests for data canonicalization functionality."""
 
+
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
 
-from pyrator.data.canonical import to_long_canonical, explode_multilabel
 from pyrator.data.backends import has_polars
+from pyrator.data.canonical import explode_multilabel, to_long_canonical
 
 
 class TestToLongCanonical:

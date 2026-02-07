@@ -1,17 +1,18 @@
 """Tests for backend availability and dispatcher functionality."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
 from pyrator.data.backends import (
     _try_import,
+    get_xp,
+    has_cupy,
+    has_duckdb,
+    has_ijson,
     has_pandas,
     has_polars,
-    has_duckdb,
-    has_cupy,
-    has_ijson,
-    get_xp,
     to_pandas,
     to_polars,
 )
@@ -286,7 +287,7 @@ class TestToPolars:
 
         import polars as pl
 
-        data = [[1, "x"], [2, "y"], [3, "z"]]
+        data = {"col1": [1, 2, 3], "col2": ["x", "y", "z"]}
         pl_df = to_polars(data)
 
         assert isinstance(pl_df, pl.DataFrame)

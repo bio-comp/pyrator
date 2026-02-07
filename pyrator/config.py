@@ -216,7 +216,8 @@ class BayesianSettings(BaseSettings):
                     )
             except (ImportError, RuntimeError):
                 print(
-                    "Warning: JAX not installed or GPU unavailable. GPU acceleration is unavailable."
+                    "Warning: JAX not installed or GPU unavailable. "
+                    "GPU acceleration is unavailable."
                 )
                 self.use_gpu = False
         return self

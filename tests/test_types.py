@@ -1,7 +1,6 @@
 """Tests for type definitions and protocols."""
 
 import numpy as np
-import pytest
 
 from pyrator.types import ArrayLike, ArrayModule, FrameLike, IntLike, RealLike
 
@@ -95,7 +94,6 @@ class TestArrayModuleProtocol:
 
     def test_array_module_protocol_checking(self):
         """Test runtime checking of ArrayModule protocol."""
-        from typing import runtime_checkable
 
         # Verify the protocol is runtime checkable
         assert hasattr(ArrayModule, "__instancecheck__")
@@ -236,7 +234,7 @@ class TestTypeUsage:
         df = pd.DataFrame({"b": [4, 5, 6]})
         result = process_frame(df)
         assert isinstance(result, pd.DataFrame)
-        assert not result is df  # Should be a copy
+        assert result is not df  # Should be a copy
 
     def test_numeric_type_validation(self):
         """Test numeric type validation functions."""

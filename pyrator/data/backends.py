@@ -76,7 +76,11 @@ def to_pandas(df_like: Any) -> Any:
     if _pl is not None and isinstance(df_like, _pl.DataFrame):
         return df_like.to_pandas()
 
-    # 3. For all other cases (dicts, lists, or already a pandas DataFrame),
+    # 3. If it's already a pandas DataFrame, return it as-is
+    if isinstance(df_like, _pd.DataFrame):
+        return df_like
+
+    # 4. For all other cases (dicts, lists), convert to DataFrame
     return _pd.DataFrame(df_like)
 
 

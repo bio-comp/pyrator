@@ -18,15 +18,16 @@ if TYPE_CHECKING:
     import polars as pl
 
 
-def _validate_file(path: Path) -> None:
+def _validate_file(path: str | Path) -> None:
     """Validate file exists, is a file, and is not empty."""
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {path}")
-    if not path.is_file():
-        raise ValueError(f"Path is not a file: {path}")
-    if not path.stat().st_size:
-        raise ValueError(f"File is empty: {path}")
-    logger.debug(f"Validated file: {path} ({path.stat().st_size:,} bytes)")
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"File not found: {p}")
+    if not p.is_file():
+        raise ValueError(f"Path is not a file: {p}")
+    if not p.stat().st_size:
+        raise ValueError(f"File is empty: {p}")
+    logger.debug(f"Validated file: {p} ({p.stat().st_size:,} bytes)")
 
 
 def _escape_sql_path(path: str) -> str:
@@ -75,7 +76,7 @@ def load_csv(
 
         logger.debug(f"Loading CSV with DuckDB: {Path(p).name}")
         escaped_path = _escape_sql_path(p)
-        return duckdb.sql(f"SELECT * FROM read_csv_auto('{escaped_path}')").pl()
+        return duckdb.sql(f"SELECT * FROM read_csv_auto('{escaped_path}')").df()
 
     logger.error("No CSV backend available")
     raise RuntimeError("Cannot read CSV: install polars, pandas, or duckdb")
@@ -83,15 +84,18 @@ def load_csv(
 
 def load_jsonl(path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars") -> FrameLike:
     """Loads a JSONL (newline-delimited JSON) file into a DataFrame."""
-    p = str(path)
+    p = Path(path)
+    _validate_file(p)
+    p_str = str(p)
+
     if has_polars() and prefer == "polars":
         import polars as pl
 
-        return pl.read_ndjson(p)
+        return pl.read_ndjson(p_str)
     if has_pandas():
         import pandas as pd
 
-        return pd.read_json(p, lines=True)
+        return pd.read_json(p_str, lines=True)
     raise RuntimeError("Neither polars nor pandas is available to read JSONL.")
 
 

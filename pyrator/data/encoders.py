@@ -35,10 +35,14 @@ class CategoryEncoder:
         self, df_like: FrameLike, *, item_col: str, annotator_col: str, label_col: str
     ) -> CategoryEncoder:
         if has_polars():
-            df = to_polars(df_like).select([item_col, annotator_col, label_col])
+            try:
+                df = to_polars(df_like).select([item_col, annotator_col, label_col])
+            except Exception as e:
+                # Convert polars exceptions to KeyError for consistency
+                raise KeyError(f"Missing columns: {e}")
             maps: dict[str, dict[Any, int]] = {}
             for col in (item_col, annotator_col, label_col):
-                uniq = df.select(col).unique().sort().to_series().to_list()
+                uniq = df.select(col).unique().sort(by=col).to_series().to_list()
                 maps[col] = {v: i for i, v in enumerate(uniq)}
             self._maps = {
                 "item": maps[item_col],
@@ -70,7 +74,11 @@ class CategoryEncoder:
         xp = get_xp(self.device)
 
         if has_polars():
-            df: pl.DataFrame = to_polars(df_like).select([item_col, annotator_col, label_col])
+            try:
+                df: pl.DataFrame = to_polars(df_like).select([item_col, annotator_col, label_col])
+            except Exception as e:
+                # Convert polars exceptions to KeyError for consistency
+                raise KeyError(f"Missing columns: {e}")
 
             # Use the fast, vectorized .replace() expression
             items_s = df[item_col].replace(self._maps["item"], default=-1)
