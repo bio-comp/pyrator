@@ -12,6 +12,7 @@ import multiprocessing
 from pathlib import Path
 from typing import ClassVar, Literal, Self
 
+from loguru import logger
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
@@ -207,7 +208,7 @@ class BayesianSettings(BaseSettings):
 
                 devices = jax.devices("gpu")
                 if not devices:
-                    print("Warning: GPU requested but not available. Falling back to CPU.")
+                    logger.warning("GPU requested but not available. Falling back to CPU.")
                     self.use_gpu = False
                 elif self.gpu_device is not None and self.gpu_device >= len(devices):
                     raise ValueError(
@@ -215,9 +216,8 @@ class BayesianSettings(BaseSettings):
                         f"Found {len(devices)} devices."
                     )
             except (ImportError, RuntimeError):
-                print(
-                    "Warning: JAX not installed or GPU unavailable. "
-                    "GPU acceleration is unavailable."
+                logger.warning(
+                    "JAX not installed or GPU unavailable. GPU acceleration is unavailable."
                 )
                 self.use_gpu = False
         return self

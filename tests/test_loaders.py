@@ -16,13 +16,17 @@ else:
     # Create a dummy pl for type checking when polars is not available
     class DummyPl:
         class DataFrame:
-            pass
+            def __len__(self) -> int:
+                return 0
+
+        @staticmethod
+        def concat(dfs):
+            return DummyPl.DataFrame()
 
     pl = DummyPl  # type: ignore
 
 from pyrator.data.backends import has_duckdb, has_pandas, has_polars
 from pyrator.data.loaders import (
-    _escape_sql_path,
     _validate_file,
     load_any,
     load_csv,
@@ -74,40 +78,6 @@ class TestValidateFile:
         _validate_file(str(test_file))
 
 
-class TestEscapeSqlPath:
-    """Test the _escape_sql_path utility function."""
-
-    def test_escape_normal_path(self):
-        """Test escaping normal path."""
-        path = "/path/to/file.csv"
-        result = _escape_sql_path(path)
-        assert result == "/path/to/file.csv"
-
-    def test_escape_path_with_apostrophes(self):
-        """Test escaping path with apostrophes."""
-        path = "/path/to/John's file.csv"
-        result = _escape_sql_path(path)
-        assert result == "/path/to/John''s file.csv"
-
-    def test_escape_path_with_multiple_apostrophes(self):
-        """Test escaping path with multiple apostrophes."""
-        path = "/path/to/what's up/John's file.csv"
-        result = _escape_sql_path(path)
-        assert result == "/path/to/what''s up/John''s file.csv"
-
-    def test_escape_empty_path(self):
-        """Test escaping empty path."""
-        path = ""
-        result = _escape_sql_path(path)
-        assert result == ""
-
-    def test_escape_path_with_only_apostrophes(self):
-        """Test escaping path with only apostrophes."""
-        path = "'''"
-        result = _escape_sql_path(path)
-        assert result == "''''''"
-
-
 class TestLoadAny:
     """Test the load_any function."""
 
@@ -116,7 +86,37 @@ class TestLoadAny:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("a,b,c\n1,2,3\n4,5,6\n")
 
-        result = load_any(csv_file, prefer="pandas")
+        result = load_any(csv_file, prefer="polars")
+
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
+        assert len(result) == 2
+
+    def test_load_any_tsv(self, tmp_path):
+        """Test load_any with TSV file."""
+        tsv_file = tmp_path / "test.tsv"
+        tsv_file.write_text("a\tb\tc\n1\t2\t3\n4\t5\t6\n")
+
+        result = load_any(tsv_file)
+
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
+        assert len(result) == 2
+
+    def test_load_any_json(self, tmp_path):
+        """Test load_any with JSON file."""
+        json_file = tmp_path / "test.json"
+        json_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n')
+
+        result = load_any(json_file)
+
+        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
+        assert len(result) == 2
+
+    def test_load_any_jsonl(self, tmp_path):
+        """Test load_any with JSONL file."""
+        jsonl_file = tmp_path / "test.jsonl"
+        jsonl_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n')
+
+        result = load_any(jsonl_file)
 
         assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
@@ -416,7 +416,7 @@ class TestScanCSV:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("a,b,c\n1,2,3\n4,5,6\n7,8,9\n")
 
-        chunks = list(scan_csv(csv_file, chunk_size=2))
+        chunks = list(scan_csv(csv_file, chunk_size=2))  # type: ignore[arg-type]
 
         assert len(chunks) == 2  # 3 rows split into chunks of 2
         total_rows = sum(len(chunk) for chunk in chunks)
@@ -427,7 +427,7 @@ class TestScanCSV:
         csv_file = tmp_path / "test.tsv"
         csv_file.write_text("a\tb\tc\n1\t2\t3\n4\t5\t6\n")
 
-        chunks = list(scan_csv(csv_file, chunk_size=1, sep="\t"))
+        chunks = list(scan_csv(csv_file, chunk_size=1, sep="\t"))  # type: ignore[arg-type]
 
         assert len(chunks) == 2
         total_rows = sum(len(chunk) for chunk in chunks)
@@ -441,7 +441,7 @@ class TestScanCSV:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("a,b\n1,2\n3,4\n")
 
-        chunks = list(scan_csv(csv_file, chunk_size=1, prefer="polars"))
+        chunks = list(scan_csv(csv_file, chunk_size=1, prefer="polars"))  # type: ignore[arg-type]
 
         import polars as pl
 
@@ -456,7 +456,7 @@ class TestScanCSV:
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("a,b\n1,2\n3,4\n")
 
-        chunks = list(scan_csv(csv_file, chunk_size=1, prefer="pandas"))
+        chunks = list(scan_csv(csv_file, chunk_size=1, prefer="pandas"))  # type: ignore[arg-type]
 
         for chunk in chunks:
             assert isinstance(chunk, pd.DataFrame)
@@ -467,11 +467,11 @@ class TestScanCSV:
         csv_file.write_text("a,b\n1,2\n")
 
         # Test with integer chunk size
-        chunks = list(scan_csv(csv_file, chunk_size=1))
+        chunks = list(scan_csv(csv_file, chunk_size=1))  # type: ignore[arg-type]
         assert len(chunks) == 1
 
         # Test with numeric chunk size (using int which is a subclass of Integral)
-        chunks = list(scan_csv(csv_file, chunk_size=int(1)))
+        chunks = list(scan_csv(csv_file, chunk_size=int(1)))  # type: ignore[arg-type]
         assert len(chunks) == 1
 
     def test_scan_csv_no_backends_available(self, tmp_path):
@@ -495,7 +495,7 @@ class TestScanJSONL:
         jsonl_file = tmp_path / "test.jsonl"
         jsonl_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n{"a": 5, "b": 6}\n')
 
-        chunks = list(scan_jsonl(jsonl_file, chunk_size=2))
+        chunks = list(scan_jsonl(jsonl_file, chunk_size=2))  # type: ignore[arg-type]
 
         assert len(chunks) == 2  # 3 rows split into chunks of 2
         total_rows = sum(len(chunk) for chunk in chunks)
@@ -509,7 +509,7 @@ class TestScanJSONL:
         jsonl_file = tmp_path / "test.jsonl"
         jsonl_file.write_text('{"a": 1}\n{"a": 2}\n')
 
-        chunks = list(scan_jsonl(jsonl_file, chunk_size=1, prefer="polars"))
+        chunks = list(scan_jsonl(jsonl_file, chunk_size=1, prefer="polars"))  # type: ignore[arg-type]
 
         import polars as pl
 
@@ -522,14 +522,14 @@ class TestScanJSONL:
             pytest.skip("Pandas not available")
 
         try:
-            import orjson
+            import orjson  # noqa: F401
         except ImportError:
             pytest.skip("orjson not available for pandas JSONL scanning")
 
         jsonl_file = tmp_path / "test.jsonl"
         jsonl_file.write_text('{"a": 1}\n{"a": 2}\n')
 
-        chunks = list(scan_jsonl(jsonl_file, chunk_size=1, prefer="pandas"))
+        chunks = list(scan_jsonl(jsonl_file, chunk_size=1, prefer="pandas"))  # type: ignore[arg-type]
 
         for chunk in chunks:
             assert isinstance(chunk, pd.DataFrame)
@@ -575,7 +575,7 @@ class TestScanParquet:
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         df.to_parquet(parquet_file)
 
-        chunks = list(scan_parquet(parquet_file, chunk_size=2))
+        chunks = list(scan_parquet(parquet_file, chunk_size=2))  # type: ignore[arg-type]
 
         assert len(chunks) >= 1  # At least one chunk
         total_rows = sum(len(chunk) for chunk in chunks)
@@ -590,7 +590,7 @@ class TestScanParquet:
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
         df.to_parquet(parquet_file)
 
-        chunks = list(scan_parquet(parquet_file, chunk_size=1, prefer="polars"))
+        chunks = list(scan_parquet(parquet_file, chunk_size=1, prefer="polars"))  # type: ignore[arg-type]
 
         import polars as pl
 
@@ -600,7 +600,7 @@ class TestScanParquet:
     def test_scan_parquet_prefer_pyarrow(self, tmp_path):
         """Test Parquet scanning preferring pyarrow."""
         try:
-            import pyarrow.parquet as pq
+            import pyarrow.parquet as pq  # noqa: F401
         except ImportError:
             pytest.skip("PyArrow not available")
 
@@ -611,7 +611,7 @@ class TestScanParquet:
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
         df.to_parquet(parquet_file)
 
-        chunks = list(scan_parquet(parquet_file, chunk_size=1, prefer="pyarrow"))
+        chunks = list(scan_parquet(parquet_file, chunk_size=1, prefer="pyarrow"))  # type: ignore[arg-type]
 
         for chunk in chunks:
             assert isinstance(chunk, pd.DataFrame)
@@ -641,7 +641,7 @@ class TestIntegration:
         full_data = load_csv(csv_file)
 
         # Scan in chunks and combine
-        chunks = list(scan_csv(csv_file, chunk_size=2))
+        chunks = list(scan_csv(csv_file, chunk_size=2))  # type: ignore[arg-type]
 
         # Handle both polars and pandas DataFrames
         if has_polars() and isinstance(chunks[0], pl.DataFrame):

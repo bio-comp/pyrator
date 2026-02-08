@@ -30,11 +30,6 @@ def _validate_file(path: str | Path) -> None:
     logger.debug(f"Validated file: {p} ({p.stat().st_size:,} bytes)")
 
 
-def _escape_sql_path(path: str) -> str:
-    """Escapes a path for inclusion in a DuckDB SQL string."""
-    return path.replace("'", "''")
-
-
 def load_any(path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars") -> FrameLike:
     """
     Loads a file into a DataFrame, auto-detecting the format from the extension.
@@ -75,8 +70,8 @@ def load_csv(
         import duckdb
 
         logger.debug(f"Loading CSV with DuckDB: {Path(p).name}")
-        escaped_path = _escape_sql_path(p)
-        return duckdb.sql(f"SELECT * FROM read_csv_auto('{escaped_path}')").df()
+        # Use direct API call instead of SQL string construction
+        return duckdb.read_csv(p, sep=sep).df()
 
     logger.error("No CSV backend available")
     raise RuntimeError("Cannot read CSV: install polars, pandas, or duckdb")
@@ -113,8 +108,9 @@ def load_parquet(path: str | Path, *, prefer: Literal["polars", "pandas"] = "pol
     if has_duckdb():
         import duckdb
 
-        escaped_path = _escape_sql_path(p)
-        return duckdb.query(f"SELECT * FROM read_parquet('{escaped_path}')").pl()
+        # Use direct API call instead of SQL string construction
+        # Note: .pl() returns a Polars DataFrame, preserving existing behavior
+        return duckdb.read_parquet(p).pl()
     raise RuntimeError("Need polars, pandas, or duckdb to read Parquet.")
 
 
