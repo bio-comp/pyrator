@@ -3,7 +3,12 @@ from typing import Literal
 
 from loguru import logger
 
-from pyrator.data.backends import has_polars, to_pandas, to_polars
+from pyrator.data.backends.backends import (
+    has_polars,
+    is_pandas_dataframe,
+    to_pandas,
+    to_polars,
+)
 from pyrator.types import FrameLike
 
 
@@ -17,19 +22,8 @@ def to_long_canonical(
 ) -> FrameLike:
     """Convert data to long canonical format for interrater analysis."""
 
-    # Preserve input type if it's already a DataFrame-like
-    from pyrator.data.backends import _pd
-
     # Use pandas path for dict/list inputs, polars only for explicit polars DataFrames
-    if (
-        has_polars()
-        and _pd is not None
-        and not isinstance(df_like, _pd.DataFrame)
-        and not isinstance(df_like, dict)
-        and not isinstance(df_like, list)
-    ):
-        import polars as pl
-
+    if has_polars() and not is_pandas_dataframe(df_like) and not isinstance(df_like, (dict, list)):
         df = to_polars(df_like)
 
         if wide_annotator_cols:
@@ -40,23 +34,18 @@ def to_long_canonical(
 
             # Check if df is polars or pandas and use appropriate method
             if hasattr(df, "unpivot"):  # polars DataFrame
-                return (
-                    df.unpivot(
-                        index=[item_col],
-                        on=wide_annotator_cols,
-                        variable_name=annotator_col,
-                        value_name=label_col,
-                    )
-                    .drop_nulls(subset=[label_col])
-                    .filter(pl.col("label").is_not_null())
-                )
-            else:  # pandas DataFrame
                 return df.unpivot(
                     index=[item_col],
                     on=wide_annotator_cols,
                     variable_name=annotator_col,
                     value_name=label_col,
-                ).dropna(subset=[label_col])
+                ).drop_nulls(subset=[label_col])
+            return df.melt(
+                id_vars=[item_col],
+                value_vars=wide_annotator_cols,
+                variable_name=annotator_col,
+                value_name=label_col,
+            ).drop_nulls(subset=[label_col])
 
         # Validate columns for long format (when wide_annotator_cols is None)
         required = [item_col, annotator_col, label_col]
@@ -98,10 +87,7 @@ def explode_multilabel(  # noqa: C901
 ) -> FrameLike:
     """Explode multi-label columns into separate rows."""
 
-    # Preserve input type if it's already a DataFrame-like
-    from pyrator.data.backends import _pd
-
-    if has_polars() and not (_pd is None or isinstance(df_like, _pd.DataFrame)):
+    if has_polars() and not is_pandas_dataframe(df_like):
         import polars as pl
 
         df = to_polars(df_like)
