@@ -4,18 +4,16 @@ from __future__ import annotations
 import numbers
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from loguru import logger
 
-from pyrator.data.backends import has_duckdb, has_pandas, has_polars
-from pyrator.types import FrameLike
+from pyrator.data.registry import BackendRegistry
 
-# This block allows Mypy/Pylance to see the types for static analysis
+# This block allows Mypy/Pylance to see types for static analysis
 # without affecting runtime performance or causing circular imports.
 if TYPE_CHECKING:
-    import pandas as pd
-    import polars as pl
+    from pyrator.types import FrameLike
 
 
 def _validate_file(path: str | Path) -> None:
@@ -30,9 +28,19 @@ def _validate_file(path: str | Path) -> None:
     logger.debug(f"Validated file: {p} ({p.stat().st_size:,} bytes)")
 
 
-def load_any(path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars") -> FrameLike:
+def load_any(
+    path: str | Path, *, prefer: Literal["auto", "polars", "pandas", "duckdb", "pyarrow"] = "auto"
+) -> FrameLike:
     """
-    Loads a file into a DataFrame, auto-detecting the format from the extension.
+    Loads a file into a DataFrame, auto-detecting the format from extension.
+
+    Args:
+        path: Path to the file to load
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name
+
+    Returns:
+        DataFrame containing the loaded data
     """
     p = Path(path)
     _validate_file(p)
@@ -40,78 +48,107 @@ def load_any(path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars"
     ext = p.suffix.lower()
     logger.debug(f"Loading {ext} file: {p.name}")
 
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
+
+    # Route to appropriate loader
     if ext in {".jsonl", ".json"}:
-        return load_jsonl(str(p), prefer=prefer)
+        return backend.load_jsonl(p, **{})
     if ext in {".parquet", ".pq"}:
-        return load_parquet(str(p), prefer=prefer)
+        return backend.load_parquet(p, **{})
     if ext in {".csv", ".tsv"}:
-        return load_csv(str(p), prefer=prefer, sep="\t" if ext == ".tsv" else ",")
+        return backend.load_csv(p, sep="\t" if ext == ".tsv" else ",", **{})
 
     logger.error(f"Unsupported file extension: {ext}")
     raise ValueError(f"Unsupported file extension: {ext}")
 
 
 def load_csv(
-    path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars", sep: str = ","
+    path: str | Path,
+    *,
+    prefer: Literal["auto", "polars", "pandas", "duckdb"] = "auto",
+    sep: str = ",",
 ) -> FrameLike:
-    """Loads a CSV or TSV file into a DataFrame."""
-    p = str(path)
-    if has_polars() and prefer == "polars":
-        import polars as pl
+    """
+    Loads a CSV or TSV file into a DataFrame.
 
-        logger.debug(f"Loading CSV with Polars: {Path(p).name}")
-        return pl.read_csv(p, separator=sep)
-    if has_pandas():
-        import pandas as pd
+    Args:
+        path: Path to the CSV file
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name that supports CSV
+        sep: Field separator (default: comma)
 
-        logger.debug(f"Loading CSV with Pandas: {Path(p).name}")
-        return pd.read_csv(p, sep=sep)
-    if has_duckdb():
-        import duckdb
-
-        logger.debug(f"Loading CSV with DuckDB: {Path(p).name}")
-        # Use direct API call instead of SQL string construction
-        return duckdb.read_csv(p, sep=sep).df()
-
-    logger.error("No CSV backend available")
-    raise RuntimeError("Cannot read CSV: install polars, pandas, or duckdb")
-
-
-def load_jsonl(path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars") -> FrameLike:
-    """Loads a JSONL (newline-delimited JSON) file into a DataFrame."""
+    Returns:
+        DataFrame containing the loaded data
+    """
     p = Path(path)
     _validate_file(p)
-    p_str = str(p)
 
-    if has_polars() and prefer == "polars":
-        import polars as pl
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
 
-        return pl.read_ndjson(p_str)
-    if has_pandas():
-        import pandas as pd
-
-        return pd.read_json(p_str, lines=True)
-    raise RuntimeError("Neither polars nor pandas is available to read JSONL.")
+    # Load with selected backend
+    return backend.load_csv(p, sep=sep, **{})
 
 
-def load_parquet(path: str | Path, *, prefer: Literal["polars", "pandas"] = "polars") -> FrameLike:
-    """Loads a Parquet file into a DataFrame."""
-    p = str(path)
-    if has_polars() and prefer == "polars":
-        import polars as pl
+def load_jsonl(
+    path: str | Path, *, prefer: Literal["auto", "polars", "pandas"] = "auto"
+) -> FrameLike:
+    """
+    Loads a JSONL (newline-delimited JSON) file into a DataFrame.
 
-        return pl.read_parquet(p)
-    if has_pandas():
-        import pandas as pd
+    Args:
+        path: Path to the JSONL file
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name that supports JSONL
 
-        return pd.read_parquet(p)
-    if has_duckdb():
-        import duckdb
+    Returns:
+        DataFrame containing the loaded data
+    """
+    p = Path(path)
+    _validate_file(p)
 
-        # Use direct API call instead of SQL string construction
-        # Note: .pl() returns a Polars DataFrame, preserving existing behavior
-        return duckdb.read_parquet(p).pl()
-    raise RuntimeError("Need polars, pandas, or duckdb to read Parquet.")
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
+
+    # Load with selected backend
+    return backend.load_jsonl(p, **{})
+
+
+def load_parquet(
+    path: str | Path, *, prefer: Literal["auto", "polars", "pandas", "duckdb", "pyarrow"] = "auto"
+) -> FrameLike:
+    """
+    Loads a Parquet file into a DataFrame.
+
+    Args:
+        path: Path to the Parquet file
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name that supports Parquet
+
+    Returns:
+        DataFrame containing the loaded data
+    """
+    p = Path(path)
+    _validate_file(p)
+
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
+
+    # Load with selected backend
+    return backend.load_parquet(p, **{})
 
 
 def scan_csv(
@@ -119,121 +156,94 @@ def scan_csv(
     *,
     chunk_size: numbers.Integral = 200_000,  # type: ignore[assignment]
     sep: str = ",",
-    prefer: Literal["polars", "pandas"] = "polars",
+    prefer: Literal["auto", "polars", "pandas"] = "auto",
 ) -> Iterator[FrameLike]:
-    """Scans a CSV file in chunks, yielding DataFrames."""
+    """
+    Scans a CSV file in chunks, yielding DataFrames.
+
+    Args:
+        path: Path to the CSV file
+        chunk_size: Number of rows per chunk
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name that supports CSV streaming
+        sep: Field separator (default: comma)
+
+    Yields:
+        DataFrames containing chunks of the data
+    """
     p = Path(path)
     _validate_file(p)
     chunk_size_int = int(chunk_size)
 
-    if has_polars() and prefer == "polars":
-        import polars as pl
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
 
-        logger.debug(f"Scanning CSV with Polars: {p.name}")
-        lf = pl.scan_csv(p, separator=sep)
-        offset = 0
-        while True:
-            batch: pl.DataFrame = lf.slice(offset, chunk_size_int).collect(engine="streaming")
-            if not len(batch):
-                break
-            yield batch
-            offset += chunk_size_int
-        return
-
-    if has_pandas():
-        import pandas as pd
-
-        logger.debug(f"Scanning CSV with Pandas: {p.name}")
-        reader: Iterator["pd.DataFrame"] = pd.read_csv(str(p), sep=sep, chunksize=chunk_size_int)
-        for chunk in reader:
-            yield chunk
-        return
-
-    raise RuntimeError("Neither polars nor pandas is available to stream CSV.")
+    # Scan with selected backend
+    yield from backend.scan_csv(p, chunk_size=chunk_size_int, sep=sep, **{})
 
 
 def scan_jsonl(
     path: str | Path,
     *,
     chunk_size: numbers.Integral = 50_000,  # type: ignore[assignment]
-    prefer: Literal["polars", "pandas"] = "polars",
+    prefer: Literal["auto", "polars", "pandas"] = "auto",
 ) -> Iterator[FrameLike]:
-    """Scans a JSONL file in chunks, yielding DataFrames."""
+    """
+    Scans a JSONL file in chunks, yielding DataFrames.
+
+    Args:
+        path: Path to the JSONL file
+        chunk_size: Number of records per chunk
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name that supports JSONL streaming
+
+    Yields:
+        DataFrames containing chunks of the data
+    """
     p = Path(path)
     _validate_file(p)
     chunk_size_int = int(chunk_size)
 
-    if has_polars() and prefer == "polars":
-        import polars as pl
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
 
-        logger.debug(f"Scanning JSONL with Polars: {p.name}")
-        lf = pl.scan_ndjson(p)
-        offset = 0
-        while True:
-            batch: pl.DataFrame = lf.slice(offset, chunk_size_int).collect(engine="streaming")
-            if not len(batch):
-                break
-            yield batch
-            offset += chunk_size_int
-        return
-
-    if has_pandas():
-        try:
-            import orjson
-        except ImportError:
-            raise RuntimeError("orjson is required for the pandas JSONL scanner.")
-        import pandas as pd
-
-        logger.debug(f"Scanning JSONL with Pandas/orjson: {p.name}")
-        buf: list[dict[str, Any]] = []
-        with open(p, "rb") as f:
-            for line in f:
-                if line.strip():
-                    buf.append(orjson.loads(line))
-                    if len(buf) >= chunk_size_int:
-                        yield pd.DataFrame(buf)
-                        buf.clear()
-        if buf:
-            yield pd.DataFrame(buf)
-        return
-
-    raise RuntimeError("Cannot stream JSONL: install polars or pandas with orjson.")
+    # Scan with selected backend
+    yield from backend.scan_jsonl(p, chunk_size=chunk_size_int, **{})
 
 
 def scan_parquet(
     path: str | Path,
     *,
     chunk_size: numbers.Integral = 100_000,  # type: ignore[assignment]
-    prefer: Literal["polars", "pyarrow"] = "polars",
+    prefer: Literal["auto", "polars", "pyarrow"] = "auto",
 ) -> Iterator[FrameLike]:
-    """Scans a Parquet file in chunks, yielding DataFrames."""
+    """
+    Scans a Parquet file in chunks, yielding DataFrames.
+
+    Args:
+        path: Path to the Parquet file
+        chunk_size: Number of rows per chunk
+        prefer: Backend preference - "auto" for automatic selection,
+               or specific backend name that supports Parquet streaming
+
+    Yields:
+        DataFrames containing chunks of the data
+    """
     p = Path(path)
     _validate_file(p)
     chunk_size_int = int(chunk_size)
 
-    if has_polars() and prefer == "polars":
-        import polars as pl
+    # Select backend
+    if prefer == "auto":
+        backend = BackendRegistry.auto_select()
+    else:
+        backend = BackendRegistry.get_backend(prefer)
 
-        logger.debug(f"Scanning Parquet with Polars: {p.name}")
-        lf = pl.scan_parquet(str(p))
-        offset = 0
-        while True:
-            batch: "pl.DataFrame" = lf.slice(offset, chunk_size_int).collect(engine="streaming")
-            if not len(batch):
-                break
-            yield batch
-            offset += chunk_size_int
-        return
-
-    try:
-        import pyarrow.parquet as pq
-
-        logger.debug(f"Scanning Parquet with PyArrow: {p.name}")
-        parquet_file = pq.ParquetFile(p)
-        for batch in parquet_file.iter_batches(batch_size=chunk_size_int):
-            yield batch.to_pandas()
-        return
-    except ImportError:
-        logger.debug("PyArrow not available for streaming.")
-
-    raise RuntimeError("Cannot stream Parquet: install polars or pyarrow.")
+    # Scan with selected backend
+    yield from backend.scan_parquet(p, chunk_size=chunk_size_int, **{})
