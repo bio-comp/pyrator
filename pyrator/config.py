@@ -104,7 +104,7 @@ class OntologySettings(BaseSettings):
     )
     lca_policy: Literal["max_ic", "max_depth"] = "max_ic"
     path_policy: Literal["undirected_tr", "spanning_tree"] = "undirected_tr"
-    smoothing_alpha: float = Field(1.0, gt=0)
+    smoothing_alpha: float = Field(default=1.0, gt=0)
     path_distance_normalization: Literal["observed", "global"] = "observed"
 
 
@@ -131,19 +131,23 @@ class BayesianPriorSettings(BaseSettings):
         env_prefix="PYRATOR_BAYESIAN__PRIORS_", case_sensitive=False
     )
     reliability_tau: float = Field(
-        1.0, gt=0, description="Scale for HalfNormal prior on annotator reliability (τ)."
+        default=1.0, gt=0, description="Scale for HalfNormal prior on annotator reliability (τ)."
     )
     difficulty_delta: float = Field(
-        1.0, gt=0, description="Scale for HalfNormal prior on item difficulty (δ)."
+        default=1.0, gt=0, description="Scale for HalfNormal prior on item difficulty (δ)."
     )
     bias_beta: float = Field(
-        1.0, gt=0, description="Scale for Normal prior on annotator specificity bias (β)."
+        default=1.0, gt=0, description="Scale for Normal prior on annotator specificity bias (β)."
     )
     hybrid_lambda_a: float = Field(
-        2.0, gt=0, description="Alpha parameter for Beta prior on the hybrid specificity metric."
+        default=2.0,
+        gt=0,
+        description="Alpha parameter for Beta prior on the hybrid specificity metric.",
     )
     hybrid_lambda_b: float = Field(
-        2.0, gt=0, description="Beta parameter for Beta prior on the hybrid specificity metric."
+        default=2.0,
+        gt=0,
+        description="Beta parameter for Beta prior on the hybrid specificity metric.",
     )
 
 
@@ -184,7 +188,7 @@ class BayesianSettings(BaseSettings):
     use_gpu: bool = False
     gpu_device: int | None = None
     pruning_k: int = Field(
-        5, ge=1, description="Number of nearest neighbors for pruned candidate sets."
+        default=5, ge=1, description="Number of nearest neighbors for pruned candidate sets."
     )
     priors: BayesianPriorSettings = BayesianPriorSettings()
 

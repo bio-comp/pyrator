@@ -1,60 +1,48 @@
-"""Ibis-based unified DataFrame protocol.
-
-This module provides a protocol that wraps Ibis table expressions,
-eliminating the need for pandas/polars imports in the type system.
-"""
+"""Shared typing protocols and aliases for pyrator."""
 
 from __future__ import annotations
 
-from typing import Any, Protocol, Union, runtime_checkable
+from numbers import Integral, Real
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, runtime_checkable
 
-# Try to import ibis, but make it optional for type checking
-try:
-    import ibis
-    from ibis.types import Expr as IbisExpr
-
-    has_ibis = True
-except ImportError:
-    has_ibis = False
+if TYPE_CHECKING:
+    # Kept in TYPE_CHECKING to avoid a runtime dependency on ibis.
+    from ibis.expr.types import Expr as IbisExpr
+else:
     IbisExpr = Any
 
 
 @runtime_checkable
-class DataFrameProtocol(Protocol):
-    """Protocol that defines a unified DataFrame interface."""
+class ArrayModule(Protocol):
+    """Protocol for NumPy/CuPy-like array modules."""
 
-    @property
-    def _expr(self) -> Any: ...
-    @property
-    def _schema(self) -> Any: ...
+    int32: Any
+    float32: Any
+    float64: Any
+
+    def asarray(self, obj: Any, dtype: Any | None = None) -> Any: ...
+    def empty(self, shape: Any, dtype: Any | None = None) -> Any: ...
+    def zeros(self, shape: Any, dtype: Any | None = None) -> Any: ...
+    def ones(self, shape: Any, dtype: Any | None = None) -> Any: ...
+
+
+@runtime_checkable
+class DataFrameProtocol(Protocol):
+    """Protocol for frame-like objects used across the data layer."""
+
     def to_pandas(self) -> Any: ...
     def to_polars(self) -> Any: ...
     def __len__(self) -> int: ...
-    def columns(self) -> list[str]: ...
-
-    # ... (rest of protocol methods same as before)
 
 
 class IbisDataFrame:
-    """Ibis-based implementation of DataFrameProtocol."""
+    """Lightweight ibis expression wrapper used for typing boundaries."""
 
-    # ... (Implementation same as before)
-    def __init__(self, expr: Any):
-        if not has_ibis:
-            raise RuntimeError("Ibis is required for IbisDataFrame")
-        # ... rest of init
+    def __init__(self, expr: IbisExpr):
+        self._expr = expr
 
 
-# Define FrameLike based on availability
-if has_ibis:
-    # Use IbisDataFrame as the primary type, but allow Protocol for flexibility
-    FrameLike = Union[IbisDataFrame, DataFrameProtocol]
-else:
-    # Fallback to Any or the Protocol when Ibis is missing
-    FrameLike = Union[DataFrameProtocol, Any]
-
-# Basic Types
-ArrayLike = Any
-ArrayModule = Any
-IntLike = Union[int, Any]  # simplified for brevity
-RealLike = Union[float, Any]
+FrameLike: TypeAlias = DataFrameProtocol | IbisDataFrame | Any
+ArrayLike: TypeAlias = Any
+IntLike: TypeAlias = Integral
+RealLike: TypeAlias = Real
