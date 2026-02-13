@@ -42,7 +42,6 @@ def has_ijson() -> bool:
     return _try_import("ijson") is not None
 
 
-# --- Backend Dispatcher ---
 def get_xp(device: str | None = None) -> ArrayModule:
     """
     Return the array module (NumPy default, CuPy if device='gpu').
@@ -91,11 +90,15 @@ def to_polars(df_like: Any) -> Any:
     Raises:
         RuntimeError: If polars is not installed.
     """
-    if _pl is not None:
+    if _pl is None:
         # Inside this block, Mypy knows _pl is the polars module.
         if isinstance(df_like, _pl.DataFrame):
             return df_like
 
+        # The None case is handled here.
+        raise RuntimeError("polars is required for this operation.")
+    else:
+        # The None case is handled here.
         return _pl.DataFrame(df_like)
     else:
         # The None case is handled here.
