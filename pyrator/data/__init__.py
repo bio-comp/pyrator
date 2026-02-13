@@ -1,3 +1,4 @@
+# pyrator/data/__init__.py
 """Data processing module for pyrator."""
 
 # Trigger backend registration first.

@@ -1,6 +1,5 @@
 """Tests for data canonicalization functionality."""
 
-
 import pandas as pd
 import pytest
 

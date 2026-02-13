@@ -7,7 +7,7 @@ ensuring consistent behavior and interface compliance.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Set
+from typing import Any
 
 from pyrator.data.spi import DataBackend
 
@@ -15,30 +15,34 @@ from pyrator.data.spi import DataBackend
 class BaseBackend(DataBackend, ABC):
     """Abstract base class for data backends."""
 
-    def __init__(self):
-        """Initialize the backend, creating the actual backend instance."""
-        self._backend = self._create_backend()
+    def __init__(self) -> None:
+        """Initialize backend state without crashing on missing optional deps."""
+        self._backend: Any | None = None
+        self._available = False
+        try:
+            self._backend = self._create_backend()
+            self._available = True
+        except ImportError:
+            self._backend = None
+            self._available = False
 
     @abstractmethod
-    def _create_backend(self):
+    def _create_backend(self) -> Any:
         """Create and return the actual backend library instance.
 
         This should handle imports and return the library object
         that will be used for actual operations.
         """
-        pass
+        raise NotImplementedError
 
     def is_available(self) -> bool:
         """Check if backend dependencies are available.
 
-        Default implementation tries to create backend and catches import errors.
+        Returns:
+            True when optional dependencies for this backend are installed.
         """
-        try:
-            self._backend
-            return True
-        except (ImportError, RuntimeError):
-            return False
+        return self._available
 
-    def capabilities(self) -> Set[str]:
+    def capabilities(self) -> set[str]:
         """Return default capabilities for most backends."""
         return {"csv", "jsonl", "parquet"}

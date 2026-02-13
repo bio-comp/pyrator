@@ -6,11 +6,11 @@ offering SQL-based data processing with direct API calls.
 
 from __future__ import annotations
 
-from typing import Iterator, Any, Set
 from pathlib import Path
+from typing import Any, Iterator, Set
 
-from pyrator.data.registry import BackendRegistry
 from pyrator.data.backends.base import BaseBackend
+from pyrator.data.registry import BackendRegistry
 from pyrator.types import FrameLike
 
 
@@ -74,7 +74,10 @@ class DuckDBBackend(BaseBackend):
         offset = 0
 
         while True:
-            query = f"SELECT * FROM read_csv('{path}', header=True, sep='{sep}') LIMIT {chunk_size_int} OFFSET {offset}"
+            query = (
+                f"SELECT * FROM read_csv('{path}', header=True, sep='{sep}') "
+                f"LIMIT {chunk_size_int} OFFSET {offset}"
+            )
             batch = self._backend.sql(query).df()
             if len(batch) == 0:
                 break

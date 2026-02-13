@@ -1847,32 +1847,38 @@ name = "pyrator"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "duckdb" },
-    { name = "ibis" },
     { name = "krippendorff" },
     { name = "loguru" },
     { name = "numpy" },
     { name = "orjson" },
+    { name = "pandas" },
     { name = "pandera" },
-    { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "statsmodels" },
 ]
 
 [package.optional-dependencies]
 all = [
     { name = "duckdb" },
     { name = "duckdb-engine" },
+    { name = "ibis" },
     { name = "ibis-framework", extra = ["duckdb", "polars"] },
     { name = "jax" },
     { name = "matplotlib" },
     { name = "pandas" },
+    { name = "pyarrow" },
     { name = "pymc" },
     { name = "seaborn" },
     { name = "sqlalchemy" },
+    { name = "statsmodels" },
+]
+backends = [
+    { name = "duckdb" },
+    { name = "ibis" },
+    { name = "pyarrow" },
+    { name = "statsmodels" },
 ]
 bayesian = [
     { name = "jax" },
@@ -1905,6 +1911,7 @@ dev = [
     { name = "pandas-stubs" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-cover" },
     { name = "pytest-sugar" },
     { name = "ruff" },
 ]
@@ -1914,10 +1921,10 @@ polars = [
 
 [package.metadata]
 requires-dist = [
-    { name = "duckdb", specifier = ">=1.3.2" },
+    { name = "duckdb", marker = "extra == 'backends'", specifier = ">=1.3.2" },
     { name = "duckdb", marker = "extra == 'database'", specifier = ">=1.3.2" },
     { name = "duckdb-engine", marker = "extra == 'database'", specifier = ">=0.17.0" },
-    { name = "ibis", specifier = ">=3.3.0" },
+    { name = "ibis", marker = "extra == 'backends'", specifier = ">=3.3.0" },
     { name = "ibis-framework", extras = ["duckdb"], marker = "extra == 'database'", specifier = ">=10.8.0" },
     { name = "ibis-framework", extras = ["polars"], marker = "extra == 'polars'", specifier = ">=10.8.0" },
     { name = "jax", marker = "extra == 'bayesian'", specifier = ">=0.7.1" },
@@ -1926,12 +1933,14 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'plotting'", specifier = ">=3.10.5" },
     { name = "numpy", specifier = ">=2.4.1" },
     { name = "orjson", specifier = ">=3.11.3" },
+    { name = "pandas", specifier = ">=2.3.3" },
     { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2.3.2" },
     { name = "pandera", specifier = ">=0.26.1" },
-    { name = "pyarrow", specifier = ">=21.0.0" },
+    { name = "pyarrow", marker = "extra == 'backends'", specifier = ">=21.0.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pymc", marker = "extra == 'bayesian'", specifier = ">=5.25.1" },
+    { name = "pyrator", extras = ["backends"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["bayesian"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["database"], marker = "extra == 'all'" },
     { name = "pyrator", extras = ["pandas"], marker = "extra == 'all'" },
@@ -1941,9 +1950,9 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.16.1" },
     { name = "seaborn", marker = "extra == 'plotting'", specifier = ">=0.13.2" },
     { name = "sqlalchemy", marker = "extra == 'database'", specifier = ">=2.0.43" },
-    { name = "statsmodels", specifier = ">=0.14.5" },
+    { name = "statsmodels", marker = "extra == 'backends'", specifier = ">=0.14.5" },
 ]
-provides-extras = ["plotting", "bayesian", "database", "pandas", "polars", "all"]
+provides-extras = ["plotting", "bayesian", "database", "backends", "pandas", "polars", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1955,6 +1964,7 @@ dev = [
     { name = "pandas-stubs", specifier = ">=2.3.2.250827" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-cover", specifier = ">=3.0.0" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "ruff", specifier = ">=0.12.11" },
 ]
@@ -2011,6 +2021,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5e/f7/c933acc76f5208b3b00089573cf6a2bc26dc80a8aece8f52bb7d6b1855ca/pytest_cov-7.0.0.tar.gz", hash = "sha256:33c97eda2e049a0c5298e91f519302a1334c26ac65c1a483d6206fd458361af1", size = 54328, upload-time = "2025-09-09T10:57:02.113Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ee/49/1377b49de7d0c1ce41292161ea0f721913fa8722c19fb9c1e3aa0367eecb/pytest_cov-7.0.0-py3-none-any.whl", hash = "sha256:3b8e9558b16cc1479da72058bdecf8073661c7f57f7d3c5f22a1c23507f2d861", size = 22424, upload-time = "2025-09-09T10:57:00.695Z" },
+]
+
+[[package]]
+name = "pytest-cover"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest-cov" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/27/20964101a7cdb260f8d6c4e854659026968321d10c90552b1fe7f6c5f913/pytest-cover-3.0.0.tar.gz", hash = "sha256:5bdb6c1cc3dd75583bb7bc2c57f5e1034a1bfcb79d27c71aceb0b16af981dbf4", size = 3211, upload-time = "2015-08-01T19:20:22.562Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/9b/7b4700c462628e169bd859c6368d596a6aedc87936bde733bead9f875fce/pytest_cover-3.0.0-py2.py3-none-any.whl", hash = "sha256:578249955eb3b5f3991209df6e532bb770b647743b7392d3d97698dc02f39ebb", size = 3769, upload-time = "2015-08-01T19:20:18.534Z" },
 ]
 
 [[package]]

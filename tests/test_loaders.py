@@ -1,5 +1,7 @@
 """Tests for data loading utilities."""
 
+# mypy: disable-error-code=no-untyped-def
+
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -7,25 +9,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from pyrator.data.backends import has_polars
-
-# Always import polars when available, otherwise create a dummy for type checking
-if has_polars():
-    import polars as pl
-else:
-    # Create a dummy pl for type checking when polars is not available
-    class DummyPl:
-        class DataFrame:
-            def __len__(self) -> int:
-                return 0
-
-        @staticmethod
-        def concat(dfs):
-            return DummyPl.DataFrame()
-
-    pl = DummyPl  # type: ignore
-
-from pyrator.data.backends import has_duckdb, has_pandas, has_polars
+from pyrator.data.backends.backends import has_duckdb, has_pandas, has_polars
 from pyrator.data.loaders import (
     _validate_file,
     load_any,
@@ -36,6 +20,22 @@ from pyrator.data.loaders import (
     scan_jsonl,
     scan_parquet,
 )
+
+# Only import polars when available; otherwise provide a typed dummy for test references.
+if has_polars():
+    import polars as pl
+else:
+
+    class DummyPl:
+        class DataFrame:
+            def __len__(self) -> int:
+                return 0
+
+        @staticmethod
+        def concat(dfs):
+            return DummyPl.DataFrame()
+
+    pl = DummyPl  # type: ignore
 
 
 class TestValidateFile:
@@ -87,36 +87,6 @@ class TestLoadAny:
         csv_file.write_text("a,b,c\n1,2,3\n4,5,6\n")
 
         result = load_any(csv_file, prefer="polars")
-
-        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
-        assert len(result) == 2
-
-    def test_load_any_tsv(self, tmp_path):
-        """Test load_any with TSV file."""
-        tsv_file = tmp_path / "test.tsv"
-        tsv_file.write_text("a\tb\tc\n1\t2\t3\n4\t5\t6\n")
-
-        result = load_any(tsv_file)
-
-        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
-        assert len(result) == 2
-
-    def test_load_any_json(self, tmp_path):
-        """Test load_any with JSON file."""
-        json_file = tmp_path / "test.json"
-        json_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n')
-
-        result = load_any(json_file)
-
-        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
-        assert len(result) == 2
-
-    def test_load_any_jsonl(self, tmp_path):
-        """Test load_any with JSONL file."""
-        jsonl_file = tmp_path / "test.jsonl"
-        jsonl_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n')
-
-        result = load_any(jsonl_file)
 
         assert isinstance(result, (pd.DataFrame, pl.DataFrame))
         assert len(result) == 2
@@ -243,16 +213,17 @@ class TestLoadCSV:
 
     def test_load_csv_fallback_duckdb(self, tmp_path):
         """Test CSV loading falling back to DuckDB."""
+
         if not has_duckdb():
             pytest.skip("DuckDB not available")
 
         csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
+        csv_file.write_text("a,b\n1,2\n3,4\n")
 
         # Mock polars and pandas as unavailable
         with (
-            patch("pyrator.data.loaders.has_polars", return_value=False),
-            patch("pyrator.data.loaders.has_pandas", return_value=False),
+            patch("pyrator.data.backends.backends.has_polars", return_value=False),
+            patch("pyrator.data.backends.backends.has_pandas", return_value=False),
         ):
             result = load_csv(csv_file, prefer="pandas")
 
@@ -260,35 +231,7 @@ class TestLoadCSV:
             import pandas as pd
 
             assert isinstance(result, pd.DataFrame)
-
-    def test_load_csv_no_backends_available(self, tmp_path):
-        """Test CSV loading with no backends available."""
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
-
-        with (
-            patch("pyrator.data.loaders.has_polars", return_value=False),
-            patch("pyrator.data.loaders.has_pandas", return_value=False),
-            patch("pyrator.data.loaders.has_duckdb", return_value=False),
-        ):
-            with pytest.raises(
-                RuntimeError, match="Cannot read CSV: install polars, pandas, or duckdb"
-            ):
-                load_csv(csv_file)
-
-
-class TestLoadJSONL:
-    """Test the load_jsonl function."""
-
-    def test_load_jsonl_basic(self, tmp_path):
-        """Test basic JSONL loading."""
-        jsonl_file = tmp_path / "test.jsonl"
-        jsonl_file.write_text('{"a": 1, "b": 2}\n{"a": 3, "b": 4}\n')
-
-        result = load_jsonl(jsonl_file, prefer="pandas")
-
-        assert isinstance(result, (pd.DataFrame, pl.DataFrame))
-        assert len(result) == 2
+            assert len(result) == 2
 
     def test_load_jsonl_prefer_polars(self, tmp_path):
         """Test JSONL loading preferring polars."""

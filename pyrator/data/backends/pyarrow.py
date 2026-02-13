@@ -6,11 +6,12 @@ specializing in efficient Parquet file streaming and processing.
 
 from __future__ import annotations
 
-from typing import Iterator, Any, Set
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
-from pyrator.data.registry import BackendRegistry
 from pyrator.data.backends.base import BaseBackend
+from pyrator.data.registry import BackendRegistry
 from pyrator.types import FrameLike
 
 
@@ -27,35 +28,16 @@ class PyArrowBackend(BaseBackend):
     def name(self) -> str:
         return "pyarrow"
 
-    def capabilities(self) -> Set[str]:
+    def capabilities(self) -> set[str]:
         return {"parquet", "streaming"}
 
     def load_csv(self, path: Path, sep: str = ",", **kwargs: Any) -> FrameLike:
-        """Load CSV file using PyArrow.
-
-        Note: PyArrow can read CSV but focuses on Parquet efficiency.
-        """
-        from loguru import logger
-
-        logger.warning("PyArrow backend: CSV support experimental, using pandas fallback.")
-
-        # Fallback to pandas for CSV since PyArrow CSV support is limited
-        import pandas as pd
-
-        return pd.read_csv(path, sep=sep)
+        """CSV loading is intentionally not supported by the PyArrow backend."""
+        raise NotImplementedError("PyArrow backend supports Parquet only for loading.")
 
     def load_jsonl(self, path: Path, **kwargs: Any) -> FrameLike:
-        """Load JSONL file using PyArrow.
-
-        Note: PyArrow doesn't have native JSONL support, so falls back.
-        """
-        from loguru import logger
-
-        logger.warning("PyArrow backend: JSONL not supported, using pandas fallback.")
-
-        import pandas as pd
-
-        return pd.read_json(str(path), lines=True)
+        """JSONL loading is intentionally not supported by the PyArrow backend."""
+        raise NotImplementedError("PyArrow backend supports Parquet only for loading.")
 
     def load_parquet(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load Parquet file using PyArrow."""
@@ -70,45 +52,12 @@ class PyArrowBackend(BaseBackend):
     def scan_csv(
         self, path: Path, chunk_size: int, sep: str = ",", **kwargs: Any
     ) -> Iterator[FrameLike]:
-        """Scan CSV file in chunks using PyArrow."""
-        from loguru import logger
-
-        logger.warning("PyArrow backend: CSV streaming experimental, using pandas fallback.")
-
-        # Fallback to pandas for CSV streaming
-        import pandas as pd
-
-        chunk_size_int = int(chunk_size)
-        reader = pd.read_csv(str(path), sep=sep, chunksize=chunk_size_int)
-        for chunk in reader:
-            yield chunk
+        """CSV scanning is intentionally not supported by the PyArrow backend."""
+        raise NotImplementedError("PyArrow backend supports Parquet only for scanning.")
 
     def scan_jsonl(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
-        """Scan JSONL file in chunks using PyArrow."""
-        from loguru import logger
-
-        logger.warning("PyArrow backend: JSONL not supported, using pandas fallback.")
-
-        # Fallback to pandas for JSONL streaming
-        import pandas as pd
-
-        chunk_size_int = int(chunk_size)
-
-        try:
-            import orjson
-        except ImportError:
-            raise RuntimeError("orjson is required for pandas JSONL scanner.")
-
-        buf = []
-        with open(path, "rb") as f:
-            for line in f:
-                if line.strip():
-                    buf.append(orjson.loads(line))
-                    if len(buf) >= chunk_size_int:
-                        yield pd.DataFrame(buf)
-                        buf.clear()
-        if buf:
-            yield pd.DataFrame(buf)
+        """JSONL scanning is intentionally not supported by the PyArrow backend."""
+        raise NotImplementedError("PyArrow backend supports Parquet only for scanning.")
 
     def scan_parquet(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
         """Scan Parquet file in chunks using PyArrow."""

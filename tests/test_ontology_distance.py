@@ -1,3 +1,5 @@
+import pytest
+
 from pyrator.ontology.core import Ontology
 
 
@@ -93,3 +95,25 @@ def test_dag_ambiguous_lca():
     # Distance = 3 + 3 - 2(2) = 2
     # Represents path: C1 -> P1 -> C2 (distance 2)
     assert ont.get_distance("c1", "c2") == 2
+
+
+def test_deep_linear_ontology_builds_without_recursion_error():
+    """A deep chain should build without hitting Python recursion depth limits."""
+    node_count = 1500
+    nodes = {f"n{i}": {} for i in range(node_count)}
+    edges = [(f"n{i}", f"n{i + 1}") for i in range(node_count - 1)]
+
+    ont = Ontology.build("deep_v1", nodes, edges)
+
+    assert ont.nodes["n0"].depth == 0
+    assert ont.nodes[f"n{node_count - 1}"].depth == node_count - 1
+    assert ont.get_distance("n0", f"n{node_count - 1}") == node_count - 1
+
+
+def test_cycle_is_rejected():
+    """Cycle detection should still raise ValueError."""
+    nodes = {"a": {}, "b": {}, "c": {}}
+    edges = [("a", "b"), ("b", "c"), ("c", "a")]
+
+    with pytest.raises(ValueError, match="Cycle detected"):
+        Ontology.build("cyclic_v1", nodes, edges)
