@@ -62,7 +62,7 @@ def get_xp(device: str | None = None) -> ArrayModule:
 
 def to_pandas(df_like: Any) -> Any:
     """
-    Robustly converts a DataFrame-like object to a pandas DataFrame.
+    Converts a DataFrame-like object to a pandas DataFrame.
 
     Raises:
         RuntimeError: If pandas is not installed.
@@ -85,21 +85,13 @@ def to_pandas(df_like: Any) -> Any:
 
 def to_polars(df_like: Any) -> Any:
     """
-    Robustly converts a DataFrame-like object to a Polars DataFrame.
+    Converts a DataFrame-like object to a Polars DataFrame.
 
     Raises:
         RuntimeError: If polars is not installed.
     """
     if _pl is None:
-        # Inside this block, Mypy knows _pl is the polars module.
-        if isinstance(df_like, _pl.DataFrame):
-            return df_like
-
-        # The None case is handled here.
         raise RuntimeError("polars is required for this operation.")
-    else:
-        # The None case is handled here.
-        return _pl.DataFrame(df_like)
-    else:
-        # The None case is handled here.
-        raise RuntimeError("polars is required for this operation.")
+    if isinstance(df_like, _pl.DataFrame):
+        return df_like
+    return _pl.DataFrame(df_like)

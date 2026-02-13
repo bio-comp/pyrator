@@ -1,3 +1,4 @@
+# data/backends/pandas.py
 """Pandas backend implementation.
 
 This module provides a Pandas-based implementation of the DataBackend protocol,
@@ -6,11 +7,12 @@ offering broad compatibility and reliability.
 
 from __future__ import annotations
 
-from typing import Iterator, Any, Set
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
-from pyrator.data.registry import BackendRegistry
 from pyrator.data.backends.base import BaseBackend
+from pyrator.data.registry import BackendRegistry
 from pyrator.types import FrameLike
 
 
@@ -18,7 +20,7 @@ from pyrator.types import FrameLike
 class PandasBackend(BaseBackend):
     """Pandas-based data backend."""
 
-    def _create_backend(self):
+    def _create_backend(self) -> Any:
         import pandas
 
         return pandas
@@ -27,23 +29,38 @@ class PandasBackend(BaseBackend):
     def name(self) -> str:
         return "pandas"
 
-    def capabilities(self) -> Set[str]:
-        return {"csv", "jsonl", "parquet"}
+    def capabilities(self) -> set[str]:
+        base_capabilities = {"csv", "jsonl", "parquet"}
+        try:
+            __import__("pyarrow.parquet")
+        except ImportError:
+            return base_capabilities
+        return base_capabilities | {"streaming"}
+
+    def _pandas_backend(self) -> Any:
+        """Return initialized pandas module or raise a dependency error."""
+        backend = self._backend
+        if backend is None:
+            raise RuntimeError("pandas backend is unavailable; install pandas to use this backend.")
+        return backend
 
     def load_csv(self, path: Path, sep: str = ",", **kwargs: Any) -> FrameLike:
         """Load CSV file using Pandas."""
         from loguru import logger
 
         logger.debug(f"Loading CSV with Pandas: {path.name}")
-        return self._backend.read_csv(path, sep=sep)
+        backend = self._pandas_backend()
+        return backend.read_csv(path, sep=sep)
 
     def load_jsonl(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load JSONL file using Pandas."""
-        return self._backend.read_json(str(path), lines=True)
+        backend = self._pandas_backend()
+        return backend.read_json(str(path), lines=True)
 
     def load_parquet(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load Parquet file using Pandas."""
-        return self._backend.read_parquet(path)
+        backend = self._pandas_backend()
+        return backend.read_parquet(path)
 
     def scan_csv(
         self, path: Path, chunk_size: int, sep: str = ",", **kwargs: Any
@@ -53,8 +70,9 @@ class PandasBackend(BaseBackend):
 
         logger.debug(f"Scanning CSV with Pandas: {path.name}")
 
+        backend = self._pandas_backend()
         chunk_size_int = int(chunk_size)
-        reader = self._backend.read_csv(str(path), sep=sep, chunksize=chunk_size_int)
+        reader = backend.read_csv(str(path), sep=sep, chunksize=chunk_size_int)
         for chunk in reader:
             yield chunk
 
@@ -69,6 +87,7 @@ class PandasBackend(BaseBackend):
         except ImportError:
             raise RuntimeError("orjson is required for pandas JSONL scanner.")
 
+        backend = self._pandas_backend()
         chunk_size_int = int(chunk_size)
         buf = []
         with open(path, "rb") as f:
@@ -76,24 +95,26 @@ class PandasBackend(BaseBackend):
                 if line.strip():
                     buf.append(orjson.loads(line))
                     if len(buf) >= chunk_size_int:
-                        yield self._backend.DataFrame(buf)
+                        yield backend.DataFrame(buf)
                         buf.clear()
         if buf:
-            yield self._backend.DataFrame(buf)
+            yield backend.DataFrame(buf)
 
     def scan_parquet(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
-        """Scan Parquet file in chunks using Pandas.
-
-        Note: Pandas doesn't have native Parquet streaming, so this
-        loads the entire file into memory and yields chunks.
-        """
+        """Scan Parquet file in chunks using PyArrow batch iteration."""
         from loguru import logger
 
-        logger.warning("Pandas backend: Parquet streaming not efficient, loading entire file.")
+        try:
+            import pyarrow.parquet as pq
+        except ImportError as exc:
+            raise RuntimeError(
+                "pyarrow is required for pandas parquet scanner. "
+                "Install pyarrow or use a different backend."
+            ) from exc
 
-        df = self._backend.read_parquet(path)
+        logger.debug(f"Scanning Parquet with Pandas via PyArrow batches: {path.name}")
         chunk_size_int = int(chunk_size)
-        total_rows = len(df)
 
-        for i in range(0, total_rows, chunk_size_int):
-            yield df.iloc[i : i + chunk_size_int]
+        parquet_file = pq.ParquetFile(path)
+        for batch in parquet_file.iter_batches(batch_size=chunk_size_int):
+            yield batch.to_pandas()

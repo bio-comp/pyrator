@@ -1,3 +1,4 @@
+# pyrator/data/backends/backends.py
 """Backend availability and utility functions.
 
 This module provides centralized functions for checking backend availability
