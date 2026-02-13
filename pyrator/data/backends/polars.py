@@ -6,11 +6,11 @@ offering high-performance data loading and streaming capabilities.
 
 from __future__ import annotations
 
-from typing import Iterator, Any, Set
 from pathlib import Path
+from typing import Any, Iterator, Set
 
-from pyrator.data.registry import BackendRegistry
 from pyrator.data.backends.base import BaseBackend
+from pyrator.data.registry import BackendRegistry
 from pyrator.types import FrameLike
 
 

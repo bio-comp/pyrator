@@ -284,6 +284,53 @@ class TestCategoryEncoder:
         assert np.array_equal(encoded.annotators, expected_annotators)
         assert np.array_equal(encoded.labels, expected_labels)
 
+    def test_transform_with_unknown_values_error_mode(self):
+        """Test transform with unknown values in error mode."""
+        encoder = CategoryEncoder(handle_unknown="error")
+
+        train_df = pd.DataFrame(
+            {"item": ["doc1", "doc2"], "annotator": ["A", "B"], "label": ["pos", "neg"]}
+        )
+        encoder.fit(train_df, item_col="item", annotator_col="annotator", label_col="label")
+
+        test_df = pd.DataFrame(
+            {
+                "item": ["doc1", "doc3"],
+                "annotator": ["A", "C"],
+                "label": ["pos", "neutral"],
+            }
+        )
+
+        with pytest.raises(ValueError, match="Unknown values in column"):
+            encoder.transform(
+                test_df, item_col="item", annotator_col="annotator", label_col="label"
+            )
+
+    def test_transform_with_unknown_values_custom_default(self):
+        """Test transform with custom default value for unknown categories."""
+        encoder = CategoryEncoder(handle_unknown="default", unknown_value=999)
+
+        train_df = pd.DataFrame(
+            {"item": ["doc1", "doc2"], "annotator": ["A", "B"], "label": ["pos", "neg"]}
+        )
+        encoder.fit(train_df, item_col="item", annotator_col="annotator", label_col="label")
+
+        test_df = pd.DataFrame(
+            {
+                "item": ["doc1", "doc3"],
+                "annotator": ["A", "C"],
+                "label": ["pos", "neutral"],
+            }
+        )
+
+        encoded = encoder.transform(
+            test_df, item_col="item", annotator_col="annotator", label_col="label"
+        )
+
+        assert np.array_equal(encoded.items, np.array([0, 999], dtype=np.int32))
+        assert np.array_equal(encoded.annotators, np.array([0, 999], dtype=np.int32))
+        assert np.array_equal(encoded.labels, np.array([1, 999], dtype=np.int32))
+
     def test_transform_gpu(self):
         """Test transform with GPU backend."""
         # Mock CuPy as available
@@ -423,3 +470,55 @@ class TestCategoryEncoder:
             encoder.transform(
                 df, item_col="nonexistent", annotator_col="annotator", label_col="label"
             )
+
+
+class TestCategoryEncoderPandasBranch:
+    """Force pandas-only code paths for coverage and behavior checks."""
+
+    def test_invalid_handle_unknown_option(self) -> None:
+        with pytest.raises(ValueError, match="handle_unknown must be one of"):
+            CategoryEncoder(handle_unknown="not_valid")  # type: ignore[arg-type]
+
+    def test_transform_ignore_unknown_in_pandas_branch(self) -> None:
+        encoder = CategoryEncoder(handle_unknown="ignore")
+        train_df = pd.DataFrame({"item": ["doc1"], "annotator": ["A"], "label": ["pos"]})
+        test_df = pd.DataFrame({"item": ["doc2"], "annotator": ["B"], "label": ["neg"]})
+
+        with patch("pyrator.data.encoders.has_polars", return_value=False):
+            encoder.fit(train_df, item_col="item", annotator_col="annotator", label_col="label")
+            encoded = encoder.transform(
+                test_df, item_col="item", annotator_col="annotator", label_col="label"
+            )
+
+        assert np.array_equal(encoded.items, np.array([-1], dtype=np.int32))
+        assert np.array_equal(encoded.annotators, np.array([-1], dtype=np.int32))
+        assert np.array_equal(encoded.labels, np.array([-1], dtype=np.int32))
+
+    def test_transform_error_mode_hits_each_unknown_column_check(self) -> None:
+        encoder = CategoryEncoder(handle_unknown="error")
+        train_df = pd.DataFrame(
+            {
+                "item": ["doc1", "doc2"],
+                "annotator": ["A", "B"],
+                "label": ["pos", "neg"],
+            }
+        )
+
+        with patch("pyrator.data.encoders.has_polars", return_value=False):
+            encoder.fit(train_df, item_col="item", annotator_col="annotator", label_col="label")
+
+            with pytest.raises(ValueError, match="annotator"):
+                encoder.transform(
+                    pd.DataFrame({"item": ["doc1"], "annotator": ["C"], "label": ["pos"]}),
+                    item_col="item",
+                    annotator_col="annotator",
+                    label_col="label",
+                )
+
+            with pytest.raises(ValueError, match="label"):
+                encoder.transform(
+                    pd.DataFrame({"item": ["doc1"], "annotator": ["A"], "label": ["neutral"]}),
+                    item_col="item",
+                    annotator_col="annotator",
+                    label_col="label",
+                )
