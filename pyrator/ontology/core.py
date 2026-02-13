@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -222,23 +222,32 @@ def truncate_id_to_depth(node_id: str, depth: int, sep: str = "_") -> str:
 
 
 def _ensure_acyclic(nodes: Collection[str], children: dict[str, set[str]]) -> None:
-    """Raise ValueError if a cycle is detected using DFS."""
-    path = set()
-    visited = set()
+    """Raise ValueError if a cycle is detected using iterative DFS."""
+    # 0 = unvisited, 1 = active path (gray), 2 = done (black)
+    state: dict[str, int] = {n: 0 for n in nodes}
 
-    def dfs(u: str) -> None:
-        path.add(u)
-        visited.add(u)
-        for v in children.get(u, set()):
-            if v in path:
-                raise ValueError(f"Cycle detected involving {u} -> {v}")
-            if v not in visited:
-                dfs(v)
-        path.remove(u)
+    for start in nodes:
+        if state[start] != 0:
+            continue
 
-    for n in nodes:
-        if n not in visited:
-            dfs(n)
+        state[start] = 1
+        stack: list[tuple[str, Iterator[str]]] = [(start, iter(children.get(start, set())))]
+
+        while stack:
+            node_id, iterator = stack[-1]
+            try:
+                child_id = next(iterator)
+            except StopIteration:
+                state[node_id] = 2
+                stack.pop()
+                continue
+
+            child_state = state.get(child_id, 0)
+            if child_state == 1:
+                raise ValueError(f"Cycle detected involving {node_id} -> {child_id}")
+            if child_state == 0:
+                state[child_id] = 1
+                stack.append((child_id, iter(children.get(child_id, set()))))
 
 
 def _toposort(
