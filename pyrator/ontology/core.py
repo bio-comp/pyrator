@@ -1,10 +1,13 @@
 # pyrator/ontology/core.py
 from __future__ import annotations
 
+import json
+import math
 from collections import deque
 from collections.abc import Collection, Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 
 @dataclass(slots=True, frozen=True)
@@ -14,6 +17,7 @@ class Node:
     id: str
     name: str | None = None
     depth: int = 0
+    ic: float = 0.0
     meta: dict[str, Any] | None = None
 
 
@@ -26,13 +30,20 @@ class Ontology:
     parents: dict[str, set[str]] = field(default_factory=dict)
     children: dict[str, set[str]] = field(default_factory=dict)
     closure: dict[str, set[str]] = field(default_factory=dict)
+    lca_policy: Literal["max_ic", "max_depth"] = "max_ic"
+    path_policy: Literal["undirected_tr", "spanning_tree"] = "undirected_tr"
+    ic_metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def build(
+    def build(  # noqa: C901
         cls,
         version: str,
         nodes: dict[str, dict[str, Any]] | dict[str, Node],
         edges: Iterable[tuple[str, str]],
+        corpus_counts: dict[str, int] | None = None,
+        smoothing_alpha: float = 1.0,
+        lca_policy: Literal["max_ic", "max_depth"] = "max_ic",
+        path_policy: Literal["undirected_tr", "spanning_tree"] = "undirected_tr",
     ) -> "Ontology":
         """Build an Ontology from node dicts and (parent, child) edges."""
         temp_nodes: dict[str, Node] = {
@@ -72,51 +83,138 @@ class Ontology:
 
             old_node = temp_nodes[nid]
             final_nodes[nid] = Node(
-                id=nid, name=old_node.name, depth=max_parent_depth + 1, meta=old_node.meta
+                id=nid,
+                name=old_node.name,
+                depth=max_parent_depth + 1,
+                meta=old_node.meta,
             )
 
+        # IC Calculation
+        ic_metadata = {"alpha": smoothing_alpha, "log_base": "e"}
+        if corpus_counts is not None:
+            # $L$: base nodes (leaves or atomic concepts)
+            # For simplicity, we define base nodes as leaves if not specified.
+            # But the README says: "For DAGs, map each corpus occurrence to exactly one $v\in L$."
+            # We'll assume $L$ is all nodes that have counts in corpus_counts.
+
+            # $count_{desc}(c) = \sum_{v \in desc(c) \cap L} count_{corpus}(v)$
+            # Compute descendant closure for IC calculation
+
+            desc_closure: dict[str, set[str]] = {nid: {nid} for nid in final_nodes}
+            # Reverse topo order for descendants
+            for nid in reversed(topo_order):
+                for child_id in children.get(nid, set()):
+                    desc_closure[nid] |= desc_closure[child_id]
+
+            total_corpus_count = sum(corpus_counts.values())
+            num_nodes = len(final_nodes)
+
+            for nid in final_nodes:
+                # count_desc(c)
+                node_descendants = desc_closure[nid]
+                desc_count = sum(corpus_counts.get(d, 0) for d in node_descendants)
+
+                # p_hat(c) = (count_desc(c) + alpha) / (total_corpus_count + alpha * |V|)
+                p_hat = (desc_count + smoothing_alpha) / (
+                    total_corpus_count + smoothing_alpha * num_nodes
+                )
+                ic = -math.log(p_hat)
+
+                # Update node with IC
+                old = final_nodes[nid]
+                final_nodes[nid] = Node(
+                    id=old.id,
+                    name=old.name,
+                    depth=old.depth,
+                    ic=ic,
+                    meta=old.meta,
+                )
+
         return cls(
-            version=version, nodes=final_nodes, parents=parents, children=children, closure=closure
+            version=version,
+            nodes=final_nodes,
+            parents=parents,
+            children=children,
+            closure=closure,
+            lca_policy=lca_policy,
+            path_policy=path_policy,
+            ic_metadata=ic_metadata,
         )
 
-    def get_distance(self, u: str, v: str) -> int:
+    def get_lca(self, u: str, v: str) -> str | None:
         """
-        Calculate the structural path distance between two nodes.
+        Return the single LCA of two nodes based on the ontology's lca_policy.
+        """
+        if u not in self.nodes or v not in self.nodes:
+            raise KeyError(f"One or both labels not found in ontology: {u}, {v}")
 
-        Uses the formula: d(u,v) = depth(u) + depth(v) - 2 * depth(LCA).
-        In DAGs where multiple LCAs exist, the LCA with the maximum depth
-        (closest to the nodes) is selected to represent the shortest path.
+        lcas = self.lowest_common_ancestors([u, v])
+        if not lcas:
+            return None
+
+        if len(lcas) == 1:
+            return next(iter(lcas))
+
+        if self.lca_policy == "max_ic":
+            return max(lcas, key=lambda nid: self.nodes[nid].ic)
+        else:  # max_depth
+            return max(lcas, key=lambda nid: self.nodes[nid].depth)
+
+    def get_distance(self, u: str, v: str, metric: str = "path") -> float:  # noqa: C901
+        """
+        Calculate the distance between two nodes using the specified metric.
+
+        Metrics:
+            - "path": depth(u) + depth(v) - 2 * depth(LCA)
+            - "lca": 1 - s_lca(u, v)
+            - "lin": 1 - s_lin(u, v)
+            - "resnik_norm": 1 - IC(LCA) / max_ic (normalized Resnik distance)
         """
         if u == v:
-            return 0
+            return 0.0
 
         # Ensure nodes exist
         if u not in self.nodes or v not in self.nodes:
             raise KeyError(f"One or both labels not found in ontology: {u}, {v}")
 
-        # Optimization: check if one is ancestor of other immediately
-        if self.is_ancestor(u, v):
-            return self.nodes[v].depth - self.nodes[u].depth
-        if self.is_ancestor(v, u):
-            return self.nodes[u].depth - self.nodes[v].depth
+        if metric == "path":
+            # Optimization: check if one is ancestor of other immediately
+            if self.is_ancestor(u, v):
+                return float(self.nodes[v].depth - self.nodes[u].depth)
+            if self.is_ancestor(v, u):
+                return float(self.nodes[u].depth - self.nodes[v].depth)
 
-        lcas = self.lowest_common_ancestors([u, v])
+            lca = self.get_lca(u, v)
+            if lca is None:
+                return float(self.nodes[u].depth + self.nodes[v].depth)
+            return float(self.nodes[u].depth + self.nodes[v].depth - 2 * self.nodes[lca].depth)
 
-        if not lcas:
-            # Fallback for disconnected components: sum of depths (distance via virtual root)
-            return self.nodes[u].depth + self.nodes[v].depth
+        if metric == "lca":
+            return 1.0 - self.get_similarity(u, v, metric="lca")
 
-        # Tie-breaker for DAGs: use the deepest LCA (closest to leaves)
-        # to find the shortest path connection.
-        max_lca_depth = max(self.nodes[lca].depth for lca in lcas)
+        if metric == "lin":
+            return 1.0 - self.get_similarity(u, v, metric="lin")
 
-        return self.nodes[u].depth + self.nodes[v].depth - 2 * max_lca_depth
+        if metric == "resnik_norm":
+            lca = self.get_lca(u, v)
+            if lca is None:
+                return 1.0
+            max_ic = max(n.ic for n in self.nodes.values())
+            if max_ic == 0:
+                return 0.0
+            return 1.0 - (self.nodes[lca].ic / max_ic)
 
-    def get_similarity(self, u: str, v: str) -> float:
+        raise ValueError(f"Unknown distance metric: {metric}")
+
+    def get_similarity(self, u: str, v: str, metric: str = "lin") -> float:  # noqa: C901
         """
-        Calculate LCA-based similarity (0.0 to 1.0).
+        Calculate the similarity between two nodes using the specified metric.
 
-        s_lca(a,b) = 2 * depth(LCA) / (depth(a) + depth(b))
+        Metrics:
+            - "lca": 2 * depth(LCA) / (depth(u) + depth(v))
+            - "lin": 2 * IC(LCA) / (IC(u) + IC(v))
+            - "resnik": IC(LCA) (Note: raw Resnik is not normalized)
+            - "resnik_norm": IC(LCA) / max_ic (normalized similarity in [0, 1])
         """
         if u == v:
             return 1.0
@@ -124,17 +222,32 @@ class Ontology:
         if u not in self.nodes or v not in self.nodes:
             raise KeyError(f"One or both labels not found in ontology: {u}, {v}")
 
-        lcas = self.lowest_common_ancestors([u, v])
-        if not lcas:
+        lca = self.get_lca(u, v)
+        if lca is None:
             return 0.0
 
-        max_lca_depth = max(self.nodes[lca].depth for lca in lcas)
-        denom = self.nodes[u].depth + self.nodes[v].depth
+        if metric == "lca":
+            denom = self.nodes[u].depth + self.nodes[v].depth
+            if denom == 0:
+                return 1.0 if u == v else 0.0
+            return (2 * self.nodes[lca].depth) / denom
 
-        if denom == 0:
-            return 0.0  # Both are root, but u != v (unlikely in single root tree)
+        if metric == "lin":
+            denom = self.nodes[u].ic + self.nodes[v].ic
+            if denom < 1e-12:
+                return 1.0 if u == v else 0.0
+            return (2 * self.nodes[lca].ic) / denom
 
-        return (2 * max_lca_depth) / denom
+        if metric == "resnik":
+            return self.nodes[lca].ic
+
+        if metric == "resnik_norm":
+            max_ic = max(n.ic for n in self.nodes.values())
+            if max_ic == 0:
+                return 1.0 if u == v else 0.0
+            return self.nodes[lca].ic / max_ic
+
+        raise ValueError(f"Unknown similarity metric: {metric}")
 
     def expand_with_ancestors(self, labels: Iterable[str], strict: bool = False) -> set[str]:
         """Return labels ∪ all their ancestors (closure)."""
@@ -194,9 +307,7 @@ class Ontology:
         return self.parents.get(node_id, set())
 
     def get_descendants(self, node_id: str) -> set[str]:
-        """
-        Returns all descendants of a node by traversing its children.
-        """
+        """Returns all descendants of a node by traversing its children."""
         if node_id not in self.nodes:
             return set()
 
@@ -207,10 +318,70 @@ class Ontology:
             child_id = queue.popleft()
             if child_id not in descendants:
                 descendants.add(child_id)
-                # Add the grandchildren to the queue to be processed
                 queue.extend(self.children.get(child_id, set()))
 
         return descendants
+
+    def get_depth(self, node_id: str) -> int:
+        """Return the depth of a node (root depth = 0)."""
+        if node_id not in self.nodes:
+            raise KeyError(f"Node not found in ontology: {node_id}")
+        return self.nodes[node_id].depth
+
+    def get_information_content(self, node_id: str) -> float:
+        """Return the information content (IC) of a node."""
+        if node_id not in self.nodes:
+            raise KeyError(f"Node not found in ontology: {node_id}")
+        return self.nodes[node_id].ic
+
+    @classmethod
+    def from_csv(cls, path: str | Path, **kwargs: Any) -> "Ontology":
+        """
+        Build an Ontology from a CSV file.
+        Expected format: columns for node_id, parent_id, etc.
+        (Implementation depends on exact expected CSV schema, but usually it's edges).
+        """
+        # Placeholder for basic implementation or specific logic
+        # For now, we'll assume a simple (parent, child) edge list CSV
+        import pandas as pd
+
+        df = pd.read_csv(path)
+        # Assume columns 'parent', 'child'
+        edges = list(df[["parent", "child"]].itertuples(index=False, name=None))
+        # Collect all nodes
+        nodes = {nid: {} for nid in set(df["parent"]) | set(df["child"])}
+        return cls.build(version="1.0", nodes=nodes, edges=edges, **kwargs)
+
+    @classmethod
+    def from_json(cls, path: str | Path, **kwargs: Any) -> "Ontology":
+        """Build an Ontology from a JSON file."""
+        with open(path) as f:
+            data = json.load(f)
+        # data should have 'nodes' and 'edges'
+        return cls.build(
+            version=data.get("version", "1.0"), nodes=data["nodes"], edges=data["edges"], **kwargs
+        )
+
+    def metrics(self) -> list[dict[str, Any]]:
+        """Return a list of available metrics and their details."""
+        return [
+            {
+                "key": "path",
+                "type": "distance",
+                "definition": "depth(u) + depth(v) - 2 * depth(LCA)",
+            },
+            {"key": "lca", "type": "distance", "definition": "1 - s_lca"},
+            {"key": "lin", "type": "distance", "definition": "1 - s_lin"},
+            {"key": "resnik_norm", "type": "distance", "definition": "1 - IC(LCA) / max_ic"},
+            {
+                "key": "lca",
+                "type": "similarity",
+                "definition": "2 * depth(LCA) / (depth(u) + depth(v))",
+            },
+            {"key": "lin", "type": "similarity", "definition": "2 * IC(LCA) / (IC(u) + IC(v))"},
+            {"key": "resnik", "type": "similarity", "definition": "IC(LCA)"},
+            {"key": "resnik_norm", "type": "similarity", "definition": "IC(LCA) / max_ic"},
+        ]
 
 
 def truncate_id_to_depth(node_id: str, depth: int, sep: str = "_") -> str:
