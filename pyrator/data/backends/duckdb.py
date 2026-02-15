@@ -87,19 +87,26 @@ class DuckDBBackend(BaseBackend):
     def scan_jsonl(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
         """Scan JSONL file in chunks using DuckDB.
 
-        Note: This is an experimental implementation that may not be efficient.
+        Uses LIMIT/OFFSET with row_number to stream without loading entire file.
         """
         from loguru import logger
 
-        logger.warning("DuckDB JSONL streaming is experimental and may be slow.")
+        logger.debug(f"Scanning JSONL with DuckDB: {path.name}")
 
-        # Load entire file and yield chunks (not memory efficient)
-        df = self.load_jsonl(path)
         chunk_size_int = int(chunk_size)
-        total_rows = len(df)
+        offset = 0
 
-        for i in range(0, total_rows, chunk_size_int):
-            yield df.iloc[i : i + chunk_size_int]
+        while True:
+            query = (
+                f"SELECT * FROM ("
+                f"SELECT *, row_number() OVER() as _rn FROM read_json_auto('{path}')"
+                f") WHERE _rn > {offset} AND _rn <= {offset + chunk_size_int}"
+            )
+            batch = self._backend.sql(query).df()
+            if len(batch) == 0:
+                break
+            yield batch
+            offset += chunk_size_int
 
     def scan_parquet(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
         """Scan Parquet file in chunks using DuckDB."""

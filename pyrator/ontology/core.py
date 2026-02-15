@@ -415,7 +415,9 @@ def _ensure_acyclic(nodes: Collection[str], children: dict[str, set[str]]) -> No
 
             child_state = state.get(child_id, 0)
             if child_state == 1:
-                raise ValueError(f"Cycle detected involving {node_id} -> {child_id}")
+                raise ValueError(
+                    f"Cycle detected: edge {child_id} -> {node_id} closes a cycle (back edge found)"
+                )
             if child_state == 0:
                 state[child_id] = 1
                 stack.append((child_id, iter(children.get(child_id, set()))))

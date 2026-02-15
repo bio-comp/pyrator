@@ -29,6 +29,7 @@ class _FakeDuckDBModule:
     def __init__(self) -> None:
         self._csv_scan_calls = 0
         self._parquet_scan_calls = 0
+        self._jsonl_scan_calls = 0
 
     def read_csv(self, path: Path, sep: str = ",") -> _Relation:
         return _Relation(as_df=pd.DataFrame({"a": [1, 2], "sep": [sep, sep]}))
@@ -45,6 +46,14 @@ class _FakeDuckDBModule:
             if self._csv_scan_calls == 1:
                 return _Relation(as_df=pd.DataFrame({"a": [1], "b": [2]}))
             return _Relation(as_df=pd.DataFrame({"a": [], "b": []}))
+
+        if "read_json_auto" in query:
+            self._jsonl_scan_calls += 1
+            if self._jsonl_scan_calls == 1:
+                return _Relation(as_df=pd.DataFrame({"a": [1, 2]}))
+            if self._jsonl_scan_calls == 2:
+                return _Relation(as_df=pd.DataFrame({"a": [3]}))
+            return _Relation(as_df=pd.DataFrame({"a": []}))
 
         self._parquet_scan_calls += 1
         if self._parquet_scan_calls == 1:
