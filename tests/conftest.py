@@ -3,8 +3,11 @@
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import pytest
 from loguru import logger
+
+from pyrator.ontology.core import Ontology
 
 # Define the cache path for your package's test data
 CACHE_DIR = Path.home() / ".cache" / "pyrator"
@@ -23,7 +26,46 @@ def crows_pairs_path() -> str:
     """
     if DATA_PATH.exists():
         logger.info(f"Found existing dataset at: {DATA_PATH}")
-        return str(DATA_PATH)
+    return str(DATA_PATH)
+
+
+@pytest.fixture
+def simple_ontology():
+    r"""
+    A diamond graph for testing semantic distances.
+
+          Root (0)
+         /    \
+      A (1)   B (1)
+         \    /
+          C (2)
+    """
+    nodes = {
+        "Root": {"depth": 0},
+        "A": {"depth": 1},
+        "B": {"depth": 1},
+        "C": {"depth": 2},
+    }
+    edges = [("Root", "A"), ("Root", "B"), ("A", "C"), ("B", "C")]
+    return Ontology.build("test_v1", nodes=nodes, edges=edges)
+
+
+@pytest.fixture
+def krippendorff_data():
+    """
+    Canonical 12-item dataset from Krippendorff (1980).
+    Expected Alpha (Nominal) approx 0.375.
+    """
+    data = []
+    rater_a = [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    rater_b = [0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0]
+
+    for i, val in enumerate(rater_a, 1):
+        data.append({"item": f"item_{i}", "rater": "A", "label": str(val)})
+    for i, val in enumerate(rater_b, 1):
+        data.append({"item": f"item_{i}", "rater": "B", "label": str(val)})
+
+    return pd.DataFrame(data)
 
     logger.info("=" * 70)
     logger.info("Downloading CrowS-Pairs dataset for testing...")
