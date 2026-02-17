@@ -33,6 +33,8 @@ class Ontology:
     lca_policy: Literal["max_ic", "max_depth"] = "max_ic"
     path_policy: Literal["undirected_tr", "spanning_tree"] = "undirected_tr"
     ic_metadata: dict[str, Any] = field(default_factory=dict)
+    _tr_children: dict[str, set[str]] = field(default_factory=dict, init=False, repr=False)
+    _tr_neighbors: dict[str, set[str]] = field(default_factory=dict, init=False, repr=False)
 
     @classmethod
     def build(  # noqa: C901
@@ -130,7 +132,7 @@ class Ontology:
                     meta=old.meta,
                 )
 
-        return cls(
+        ontology = cls(
             version=version,
             nodes=final_nodes,
             parents=parents,
@@ -140,6 +142,13 @@ class Ontology:
             path_policy=path_policy,
             ic_metadata=ic_metadata,
         )
+        ontology._tr_children = _transitive_reduction_children(
+            final_nodes.keys(), ontology.children, ontology.closure
+        )
+        ontology._tr_neighbors = _build_undirected_neighbors(
+            final_nodes.keys(), ontology._tr_children
+        )
+        return ontology
 
     def get_lca(self, u: str, v: str) -> str | None:
         """
@@ -165,7 +174,9 @@ class Ontology:
         Calculate the distance between two nodes using the specified metric.
 
         Metrics:
-            - "path": depth(u) + depth(v) - 2 * depth(LCA)
+            - "path": policy-aware path distance
+                - undirected_tr: shortest undirected path on the transitive reduction
+                - spanning_tree: depth(u) + depth(v) - 2 * depth(LCA)
             - "lca": 1 - s_lca(u, v)
             - "lin": 1 - s_lin(u, v)
             - "resnik_norm": 1 - IC(LCA) / max_ic (normalized Resnik distance)
@@ -178,7 +189,15 @@ class Ontology:
             raise KeyError(f"One or both labels not found in ontology: {u}, {v}")
 
         if metric == "path":
-            # Optimization: check if one is ancestor of other immediately
+            if self.path_policy == "undirected_tr":
+                self._ensure_transitive_reduction_cache()
+                shortest_path_distance = self._shortest_path_distance_undirected_tr(u, v)
+                if shortest_path_distance is not None:
+                    return float(shortest_path_distance)
+                # Preserve existing disconnected fallback behavior.
+                return float(self.nodes[u].depth + self.nodes[v].depth)
+
+            # spanning_tree policy: check if one is ancestor of the other immediately.
             if self.is_ancestor(u, v):
                 return float(self.nodes[v].depth - self.nodes[u].depth)
             if self.is_ancestor(v, u):
@@ -227,16 +246,16 @@ class Ontology:
             return 0.0
 
         if metric == "lca":
-            denom = self.nodes[u].depth + self.nodes[v].depth
-            if denom == 0:
+            depth_denom = self.nodes[u].depth + self.nodes[v].depth
+            if depth_denom == 0:
                 return 1.0 if u == v else 0.0
-            return (2 * self.nodes[lca].depth) / denom
+            return (2 * self.nodes[lca].depth) / depth_denom
 
         if metric == "lin":
-            denom = self.nodes[u].ic + self.nodes[v].ic
-            if denom < 1e-12:
+            ic_denom = self.nodes[u].ic + self.nodes[v].ic
+            if ic_denom < 1e-12:
                 return 1.0 if u == v else 0.0
-            return (2 * self.nodes[lca].ic) / denom
+            return (2 * self.nodes[lca].ic) / ic_denom
 
         if metric == "resnik":
             return self.nodes[lca].ic
@@ -248,6 +267,31 @@ class Ontology:
             return self.nodes[lca].ic / max_ic
 
         raise ValueError(f"Unknown similarity metric: {metric}")
+
+    def _ensure_transitive_reduction_cache(self) -> None:
+        """Populate transitive-reduction caches for undirected path queries."""
+        if self._tr_children and self._tr_neighbors:
+            return
+        self._tr_children = _transitive_reduction_children(
+            self.nodes.keys(), self.children, self.closure
+        )
+        self._tr_neighbors = _build_undirected_neighbors(self.nodes.keys(), self._tr_children)
+
+    def _shortest_path_distance_undirected_tr(self, source: str, target: str) -> int | None:
+        """Return undirected shortest-path distance on transitive-reduction edges."""
+        visited = {source}
+        queue: deque[tuple[str, int]] = deque([(source, 0)])
+
+        while queue:
+            node_id, distance = queue.popleft()
+            for neighbor_id in self._tr_neighbors.get(node_id, set()):
+                if neighbor_id == target:
+                    return distance + 1
+                if neighbor_id not in visited:
+                    visited.add(neighbor_id)
+                    queue.append((neighbor_id, distance + 1))
+
+        return None
 
     def expand_with_ancestors(self, labels: Iterable[str], strict: bool = False) -> set[str]:
         """Return labels ∪ all their ancestors (closure)."""
@@ -349,7 +393,7 @@ class Ontology:
         # Assume columns 'parent', 'child'
         edges = list(df[["parent", "child"]].itertuples(index=False, name=None))
         # Collect all nodes
-        nodes = {nid: {} for nid in set(df["parent"]) | set(df["child"])}
+        nodes: dict[str, dict[str, Any]] = {nid: {} for nid in set(df["parent"]) | set(df["child"])}
         return cls.build(version="1.0", nodes=nodes, edges=edges, **kwargs)
 
     @classmethod
@@ -368,7 +412,10 @@ class Ontology:
             {
                 "key": "path",
                 "type": "distance",
-                "definition": "depth(u) + depth(v) - 2 * depth(LCA)",
+                "definition": (
+                    "policy-aware: undirected_tr => shortest undirected path on transitive "
+                    "reduction; spanning_tree => depth(u) + depth(v) - 2 * depth(LCA)"
+                ),
             },
             {"key": "lca", "type": "distance", "definition": "1 - s_lca"},
             {"key": "lin", "type": "distance", "definition": "1 - s_lin"},
@@ -390,6 +437,38 @@ def truncate_id_to_depth(node_id: str, depth: int, sep: str = "_") -> str:
     if len(parts) - 1 <= depth:
         return node_id
     return sep.join(parts[: 1 + depth])
+
+
+def _transitive_reduction_children(
+    nodes: Collection[str],
+    children: dict[str, set[str]],
+    closure: dict[str, set[str]],
+) -> dict[str, set[str]]:
+    """Return transitive-reduction edges for a DAG represented as parent->children."""
+    tr_children: dict[str, set[str]] = {node_id: set() for node_id in nodes}
+
+    for parent_id, child_ids in children.items():
+        for child_id in child_ids:
+            is_redundant = any(
+                alt_child_id != child_id and alt_child_id in closure[child_id]
+                for alt_child_id in child_ids
+            )
+            if not is_redundant:
+                tr_children[parent_id].add(child_id)
+
+    return tr_children
+
+
+def _build_undirected_neighbors(
+    nodes: Collection[str], children: dict[str, set[str]]
+) -> dict[str, set[str]]:
+    """Build undirected adjacency from directed parent->children edges."""
+    neighbors: dict[str, set[str]] = {node_id: set() for node_id in nodes}
+    for parent_id, child_ids in children.items():
+        for child_id in child_ids:
+            neighbors[parent_id].add(child_id)
+            neighbors[child_id].add(parent_id)
+    return neighbors
 
 
 def _ensure_acyclic(nodes: Collection[str], children: dict[str, set[str]]) -> None:

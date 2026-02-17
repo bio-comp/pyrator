@@ -51,6 +51,65 @@ def simple_ontology():
 
 
 @pytest.fixture
+def dag_cross_branch_shortcut() -> tuple[dict[str, dict[str, str]], list[tuple[str, str]]]:
+    r"""
+    DAG where undirected shortest path is shorter than LCA up/down path.
+
+          root
+         /    \
+        a      b
+        |      |
+        u      v
+         \    /
+           z
+
+    d_spanning_tree(u, v) = 4 via root
+    d_undirected_tr(u, v) = 2 via z
+    """
+    nodes = {node_id: {"name": node_id.upper()} for node_id in ["root", "a", "b", "u", "v", "z"]}
+    edges = [
+        ("root", "a"),
+        ("root", "b"),
+        ("a", "u"),
+        ("b", "v"),
+        ("u", "z"),
+        ("v", "z"),
+    ]
+    return nodes, edges
+
+
+@pytest.fixture
+def dag_with_redundant_edge() -> tuple[dict[str, dict[str, str]], list[tuple[str, str]]]:
+    r"""
+    DAG with an explicit transitive edge.
+
+    root -> a -> b -> c -> z
+    root -> x -> y ----^
+                   ^
+                   |
+                   b -> z  (redundant transitive edge via b -> c -> z)
+
+    For distance between b and y:
+      - raw edges shortest path is 2 (b-z-y),
+      - transitive-reduction shortest path is 3 (b-c-z-y).
+    """
+    nodes = {
+        node_id: {"name": node_id.upper()} for node_id in ["root", "a", "b", "c", "x", "y", "z"]
+    }
+    edges = [
+        ("root", "a"),
+        ("a", "b"),
+        ("b", "c"),
+        ("c", "z"),
+        ("root", "x"),
+        ("x", "y"),
+        ("y", "z"),
+        ("b", "z"),
+    ]
+    return nodes, edges
+
+
+@pytest.fixture
 def krippendorff_data():
     """
     Canonical 12-item dataset from Krippendorff (1980).
