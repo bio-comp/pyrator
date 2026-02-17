@@ -1,5 +1,5 @@
-import pytest
 import math
+import pytest
 from pyrator.ontology.core import Ontology
 
 

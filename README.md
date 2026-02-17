@@ -34,7 +34,7 @@
 
 “Undirected shortest path on the transitive reduction” is fast but can produce unintuitive “cross-branch” detours. Offer an alternative:
 
-path_policy="up_down": distance = depth(a)+depth(b) − 2*depth(best_LCA) (uses DAG LCA policy), i.e., the tree path induced by the chosen LCA. It’s semantically tighter and cheap if you have ancestor bitsets.
+path_policy="spanning_tree": distance = depth(a)+depth(b) − 2*depth(best_LCA) (uses DAG LCA policy), i.e., the tree path induced by the chosen LCA. It’s semantically tighter and cheap if you have ancestor bitsets.
 
 
 **Distances/Similarities** (pickable by `metric`):

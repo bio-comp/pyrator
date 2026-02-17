@@ -97,6 +97,31 @@ def test_dag_ambiguous_lca():
     assert ont.get_distance("c1", "c2") == 2
 
 
+def test_path_policy_undirected_tr_uses_undirected_shortest_path(
+    dag_cross_branch_shortcut,
+):
+    nodes, edges = dag_cross_branch_shortcut
+    ont = Ontology.build("v1", nodes, edges, path_policy="undirected_tr")
+
+    # Old LCA up/down formula would yield 4, but undirected shortest path via z is 2.
+    assert ont.get_distance("u", "v", metric="path") == 2
+
+
+def test_path_policy_spanning_tree_keeps_lca_formula(dag_cross_branch_shortcut):
+    nodes, edges = dag_cross_branch_shortcut
+    ont = Ontology.build("v1", nodes, edges, path_policy="spanning_tree")
+
+    assert ont.get_distance("u", "v", metric="path") == 4
+
+
+def test_undirected_tr_ignores_redundant_edges(dag_with_redundant_edge):
+    nodes, edges = dag_with_redundant_edge
+    ont = Ontology.build("v1", nodes, edges, path_policy="undirected_tr")
+
+    # Raw edges would give 2 via b-z-y; transitive reduction removes b-z.
+    assert ont.get_distance("b", "y", metric="path") == 3
+
+
 def test_deep_linear_ontology_builds_without_recursion_error():
     """A deep chain should build without hitting Python recursion depth limits."""
     node_count = 1500
