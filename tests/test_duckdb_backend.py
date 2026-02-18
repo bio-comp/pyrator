@@ -13,10 +13,15 @@ from pyrator.data.backends.duckdb import DuckDBBackend
 
 class _Relation:
     def __init__(
-        self, *, as_df: pd.DataFrame | None = None, as_pl: pd.DataFrame | None = None
+        self,
+        *,
+        as_df: pd.DataFrame | None = None,
+        as_pl: pd.DataFrame | None = None,
+        df_chunks: list[pd.DataFrame] | None = None,
     ) -> None:
         self._as_df = as_df if as_df is not None else pd.DataFrame()
         self._as_pl = as_pl if as_pl is not None else pd.DataFrame()
+        self._df_chunks = list(df_chunks or [])
 
     def df(self) -> pd.DataFrame:
         return self._as_df
@@ -24,12 +29,15 @@ class _Relation:
     def pl(self) -> pd.DataFrame:
         return self._as_pl
 
+    def fetch_df_chunk(self, *args, **kwargs) -> pd.DataFrame:
+        if self._df_chunks:
+            return self._df_chunks.pop(0)
+        return pd.DataFrame()
+
 
 class _FakeDuckDBModule:
     def __init__(self) -> None:
-        self._csv_scan_calls = 0
-        self._parquet_scan_calls = 0
-        self._jsonl_scan_calls = 0
+        self.sql_queries: list[str] = []
 
     def read_csv(self, path: Path, sep: str = ",") -> _Relation:
         return _Relation(as_df=pd.DataFrame({"a": [1, 2], "sep": [sep, sep]}))
@@ -41,24 +49,30 @@ class _FakeDuckDBModule:
         return _Relation(as_pl=pd.DataFrame({"a": [10, 11]}))
 
     def sql(self, query: str) -> _Relation:
+        self.sql_queries.append(query)
         if "read_csv" in query:
-            self._csv_scan_calls += 1
-            if self._csv_scan_calls == 1:
-                return _Relation(as_df=pd.DataFrame({"a": [1], "b": [2]}))
-            return _Relation(as_df=pd.DataFrame({"a": [], "b": []}))
+            return _Relation(
+                df_chunks=[
+                    pd.DataFrame({"a": [1], "b": [2]}),
+                    pd.DataFrame({"a": []}),
+                ]
+            )
 
         if "read_json_auto" in query:
-            self._jsonl_scan_calls += 1
-            if self._jsonl_scan_calls == 1:
-                return _Relation(as_df=pd.DataFrame({"a": [1, 2]}))
-            if self._jsonl_scan_calls == 2:
-                return _Relation(as_df=pd.DataFrame({"a": [3]}))
-            return _Relation(as_df=pd.DataFrame({"a": []}))
+            return _Relation(
+                df_chunks=[
+                    pd.DataFrame({"a": [1, 2]}),
+                    pd.DataFrame({"a": [3]}),
+                    pd.DataFrame({"a": []}),
+                ]
+            )
 
-        self._parquet_scan_calls += 1
-        if self._parquet_scan_calls == 1:
-            return _Relation(as_pl=pd.DataFrame({"a": [3], "b": [4]}))
-        return _Relation(as_pl=pd.DataFrame({"a": [], "b": []}))
+        return _Relation(
+            df_chunks=[
+                pd.DataFrame({"a": [3], "b": [4]}),
+                pd.DataFrame({"a": []}),
+            ]
+        )
 
 
 def test_duckdb_backend_unavailable_when_import_fails() -> None:
@@ -107,7 +121,7 @@ def test_duckdb_backend_load_jsonl_wraps_errors() -> None:
 
 
 def test_duckdb_backend_scan_methods_with_stubbed_backend() -> None:
-    """Scan methods should yield chunked results and stop on empty batches."""
+    """Scan methods should stream by chunk without SQL paging primitives."""
     fake = _FakeDuckDBModule()
     with patch.object(DuckDBBackend, "_create_backend", return_value=fake):
         backend = DuckDBBackend()
@@ -120,3 +134,8 @@ def test_duckdb_backend_scan_methods_with_stubbed_backend() -> None:
     assert len(jsonl_chunks) == 2
     assert len(parquet_chunks) == 1
     assert sum(len(chunk) for chunk in jsonl_chunks) == 3
+    assert len([q for q in fake.sql_queries if "read_csv" in q]) == 1
+    assert len([q for q in fake.sql_queries if "read_json_auto" in q]) == 1
+    assert len([q for q in fake.sql_queries if "read_parquet" in q]) == 1
+    assert all("OFFSET" not in q.upper() for q in fake.sql_queries)
+    assert all("ROW_NUMBER" not in q.upper() for q in fake.sql_queries)
