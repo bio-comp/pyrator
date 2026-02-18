@@ -1,3 +1,4 @@
+# pyrator/data/backends/__init__.py
 """Compatibility exports for backend availability and conversions."""
 
 from __future__ import annotations
