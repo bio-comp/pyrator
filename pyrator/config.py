@@ -1,3 +1,4 @@
+# pyrator/config.py
 """Configuration management for the pyrator library.
 
 This module defines the configuration structure for pyrator using Pydantic,
