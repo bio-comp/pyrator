@@ -19,6 +19,8 @@ def isolated_registry() -> Iterator[None]:
     original_backends = BackendRegistry._backends.copy()
     original_priority = BackendRegistry._priority.copy()
     original_capabilities = BackendRegistry._capabilities.copy()
+    original_availability_cache = getattr(BackendRegistry, "_availability_cache", {}).copy()
+    original_instance_cache = getattr(BackendRegistry, "_instance_cache", {}).copy()
     try:
         BackendRegistry.clear()
         yield
@@ -27,6 +29,10 @@ def isolated_registry() -> Iterator[None]:
         BackendRegistry._backends.update(original_backends)
         BackendRegistry._priority.extend(original_priority)
         BackendRegistry._capabilities.update(original_capabilities)
+        if hasattr(BackendRegistry, "_availability_cache"):
+            BackendRegistry._availability_cache.update(original_availability_cache)
+        if hasattr(BackendRegistry, "_instance_cache"):
+            BackendRegistry._instance_cache.update(original_instance_cache)
 
 
 class ImportErrorBackend:
@@ -153,6 +159,30 @@ class UnavailableBackend(AvailableBackend):
         return False
 
 
+class ModuleProbeUnavailableBackend(AvailableBackend):
+    """Backend stub that should be skipped before instantiation."""
+
+    init_calls = 0
+
+    @classmethod
+    def is_available_class(cls) -> bool:
+        return False
+
+    def __init__(self) -> None:
+        type(self).init_calls += 1
+        super().__init__()
+
+
+class CountingBackend(AvailableBackend):
+    """Backend stub to verify probe caching avoids re-instantiation."""
+
+    init_calls = 0
+
+    def __init__(self) -> None:
+        type(self).init_calls += 1
+        super().__init__()
+
+
 class TestBackendRegistryDependencyHandling:
     """Regression tests for optional dependency behavior in registry selection."""
 
@@ -229,3 +259,25 @@ class TestBackendRegistryAdditionalCoverage:
         BackendRegistry.register("csv_only")(AvailableBackend)
         with pytest.raises(RuntimeError, match="No backend available with capabilities"):
             BackendRegistry.get_best_backend_with_capabilities({"csv", "streaming"})
+
+    def test_auto_select_skips_class_level_unavailable_backend(
+        self, isolated_registry: None
+    ) -> None:
+        ModuleProbeUnavailableBackend.init_calls = 0
+        BackendRegistry.register("probe_unavailable", priority=0)(ModuleProbeUnavailableBackend)
+        BackendRegistry.register("available", priority=1)(AvailableBackend)
+
+        selected = BackendRegistry.auto_select()
+        assert selected.name == "available"
+        assert ModuleProbeUnavailableBackend.init_calls == 0
+
+    def test_selection_reuses_cached_probe_instance(self, isolated_registry: None) -> None:
+        CountingBackend.init_calls = 0
+        BackendRegistry.register("counting", priority=0)(CountingBackend)
+
+        first = BackendRegistry.get_best_backend_with_capabilities({"csv"})
+        second = BackendRegistry.get_best_backend_with_capabilities({"csv"})
+
+        assert first.name == "available"
+        assert second.name == "available"
+        assert CountingBackend.init_calls == 1

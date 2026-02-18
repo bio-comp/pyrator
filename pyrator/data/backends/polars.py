@@ -18,6 +18,8 @@ from pyrator.types import FrameLike
 class PolarsBackend(BaseBackend):
     """Polars-based data backend."""
 
+    backend_module = "polars"
+
     def _create_backend(self):
         import polars
 
