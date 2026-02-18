@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     # Kept in TYPE_CHECKING to avoid a runtime dependency on ibis.
     from ibis.expr.types import Expr as IbisExpr
 else:
-    IbisExpr = Any
+    IbisExpr = object
 
 
 @runtime_checkable
@@ -30,8 +30,6 @@ class ArrayModule(Protocol):
 class DataFrameProtocol(Protocol):
     """Protocol for frame-like objects used across the data layer."""
 
-    def to_pandas(self) -> Any: ...
-    def to_polars(self) -> Any: ...
     def __len__(self) -> int: ...
 
 
@@ -42,7 +40,7 @@ class IbisDataFrame:
         self._expr = expr
 
 
-FrameLike: TypeAlias = DataFrameProtocol | IbisDataFrame | Any
+FrameLike: TypeAlias = DataFrameProtocol | IbisDataFrame
 ArrayLike: TypeAlias = Any
 IntLike: TypeAlias = Integral
 RealLike: TypeAlias = Real
