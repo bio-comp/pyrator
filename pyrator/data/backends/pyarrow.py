@@ -19,6 +19,8 @@ from pyrator.types import FrameLike
 class PyArrowBackend(BaseBackend):
     """PyArrow-based data backend."""
 
+    backend_module = "pyarrow.parquet"
+
     def _create_backend(self):
         import pyarrow.parquet as pq
 

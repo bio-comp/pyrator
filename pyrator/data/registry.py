@@ -7,6 +7,7 @@ routing of backend implementations.
 
 from __future__ import annotations
 
+from importlib.util import find_spec
 from typing import Dict, List, Optional, Set, Type
 
 from pyrator.data.spi import DataBackend
@@ -18,6 +19,8 @@ class BackendRegistry:
     _backends: Dict[str, Type[DataBackend]] = {}
     _priority: List[str] = ["polars", "pandas", "duckdb", "pyarrow"]
     _capabilities: Dict[str, Set[str]] = {}
+    _availability_cache: Dict[str, bool] = {}
+    _instance_cache: Dict[str, DataBackend] = {}
 
     @classmethod
     def register(cls, name: str, priority: Optional[int] = None):
@@ -33,6 +36,8 @@ class BackendRegistry:
 
         def decorator(backend_cls: Type[DataBackend]):
             cls._backends[name] = backend_cls
+            cls._availability_cache.pop(name, None)
+            cls._instance_cache.pop(name, None)
 
             # Insert at correct priority position
             if priority is not None and name not in cls._priority:
@@ -43,6 +48,55 @@ class BackendRegistry:
             return backend_cls
 
         return decorator
+
+    @classmethod
+    def _declared_capabilities_allow(cls, name: str, required: set[str]) -> bool:
+        declared = cls._capabilities.get(name)
+        return declared is None or required.issubset(declared)
+
+    @classmethod
+    def _is_backend_class_available(cls, backend_cls: Type[DataBackend]) -> bool:
+        class_probe = getattr(backend_cls, "is_available_class", None)
+        if callable(class_probe):
+            try:
+                return bool(class_probe())
+            except Exception:
+                return False
+
+        module_name = getattr(backend_cls, "backend_module", None)
+        if isinstance(module_name, str):
+            try:
+                return find_spec(module_name) is not None
+            except (ImportError, ValueError):
+                return False
+        return True
+
+    @classmethod
+    def _probe_backend(cls, name: str) -> DataBackend | None:
+        if name in cls._instance_cache:
+            return cls._instance_cache[name]
+        if cls._availability_cache.get(name) is False:
+            return None
+
+        backend_cls = cls._backends[name]
+        if not cls._is_backend_class_available(backend_cls):
+            cls._availability_cache[name] = False
+            return None
+
+        try:
+            backend = backend_cls()
+        except ImportError:
+            cls._availability_cache[name] = False
+            return None
+
+        if not backend.is_available():
+            cls._availability_cache[name] = False
+            return None
+
+        cls._availability_cache[name] = True
+        cls._instance_cache[name] = backend
+        cls._capabilities.setdefault(name, set(backend.capabilities()))
+        return backend
 
     @classmethod
     def get_backend(cls, name: str) -> DataBackend:
@@ -61,13 +115,8 @@ class BackendRegistry:
         if name not in cls._backends:
             raise ValueError(f"Unknown backend: {name}")
 
-        try:
-            backend = cls._backends[name]()
-        except ImportError as exc:
-            raise RuntimeError(
-                f"Backend '{name}' is registered but dependencies are missing."
-            ) from exc
-        if not backend.is_available():
+        backend = cls._probe_backend(name)
+        if backend is None:
             raise RuntimeError(f"Backend '{name}' is registered but dependencies are missing.")
         return backend
 
@@ -83,11 +132,8 @@ class BackendRegistry:
         """
         for name in cls._priority:
             if name in cls._backends:
-                try:
-                    backend = cls._backends[name]()
-                except ImportError:
-                    continue
-                if backend.is_available():
+                backend = cls._probe_backend(name)
+                if backend is not None:
                     return backend
         raise RuntimeError("No data backends found (install polars, pandas, or duckdb).")
 
@@ -103,11 +149,12 @@ class BackendRegistry:
         """
         for name in cls._priority:
             if name in cls._backends:
-                try:
-                    backend = cls._backends[name]()
-                except ImportError:
+                if not cls._declared_capabilities_allow(name, {capability}):
                     continue
-                if backend.is_available() and capability in backend.capabilities():
+                backend = cls._probe_backend(name)
+                if backend is None:
+                    continue
+                if capability in cls._capabilities.get(name, set()):
                     return backend
         raise RuntimeError(f"No backend available with capability '{capability}'.")
 
@@ -116,11 +163,12 @@ class BackendRegistry:
         """Get best backend that supports all required capabilities."""
         for name in cls._priority:
             if name in cls._backends:
-                try:
-                    backend = cls._backends[name]()
-                except ImportError:
+                if not cls._declared_capabilities_allow(name, required):
                     continue
-                if backend.is_available() and required.issubset(backend.capabilities()):
+                backend = cls._probe_backend(name)
+                if backend is None:
+                    continue
+                if required.issubset(cls._capabilities.get(name, set())):
                     return backend
         joined = ", ".join(sorted(required))
         raise RuntimeError(f"No backend available with capabilities: {joined}.")
@@ -137,12 +185,13 @@ class BackendRegistry:
         """
         available = []
         for name in cls._priority:
-            if name in cls._backends and capability in cls._capabilities.get(name, set()):
-                try:
-                    backend = cls._backends[name]()
-                except ImportError:
+            if name in cls._backends:
+                if not cls._declared_capabilities_allow(name, {capability}):
                     continue
-                if backend.is_available():
+                backend = cls._probe_backend(name)
+                if backend is None:
+                    continue
+                if capability in cls._capabilities.get(name, set()):
                     available.append(name)
         return available
 
@@ -158,7 +207,7 @@ class BackendRegistry:
     @classmethod
     def register_capabilities(cls, name: str, capabilities: Set[str]):
         """Register capabilities for a backend."""
-        cls._capabilities[name] = capabilities
+        cls._capabilities[name] = set(capabilities)
 
     @classmethod
     def clear(cls):
@@ -166,3 +215,5 @@ class BackendRegistry:
         cls._backends.clear()
         cls._priority.clear()
         cls._capabilities.clear()
+        cls._availability_cache.clear()
+        cls._instance_cache.clear()

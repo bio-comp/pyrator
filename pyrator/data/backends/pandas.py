@@ -20,6 +20,8 @@ from pyrator.types import FrameLike
 class PandasBackend(BaseBackend):
     """Pandas-based data backend."""
 
+    backend_module = "pandas"
+
     def _create_backend(self) -> Any:
         import pandas
 
