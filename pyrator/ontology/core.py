@@ -67,7 +67,6 @@ class Ontology:
             parents[c].add(p)
             children[p].add(c)
 
-        _ensure_acyclic(temp_nodes.keys(), children)
         topo_order = _toposort(temp_nodes.keys(), parents, children)
 
         closure: dict[str, set[str]] = {nid: {nid} for nid in temp_nodes}
@@ -443,5 +442,5 @@ def _toposort(
                 queue.append(v)
 
     if len(out) != node_count:
-        raise ValueError("Graph is not a DAG (cycle suspected)")
+        raise ValueError("Cycle detected: Graph is not a DAG")
     return out

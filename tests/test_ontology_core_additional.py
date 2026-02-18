@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from pyrator.ontology import core as ontology_core
 from pyrator.ontology.core import Ontology, _toposort, truncate_id_to_depth
 
 
@@ -67,3 +68,18 @@ def test_truncate_and_toposort_cycle_guard() -> None:
             parents={"a": {"b"}, "b": {"a"}},
             children={"a": {"b"}, "b": {"a"}},
         )
+
+
+def test_build_skips_redundant_dfs_cycle_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Build should rely on topological-sort cycle detection only."""
+
+    def _unexpected_cycle_check(*args: object, **kwargs: object) -> None:
+        raise AssertionError("_ensure_acyclic should not be called from Ontology.build")
+
+    monkeypatch.setattr(ontology_core, "_ensure_acyclic", _unexpected_cycle_check)
+    ont = Ontology.build(
+        "v_no_dfs",
+        nodes={"root": {}, "leaf": {}},
+        edges=[("root", "leaf")],
+    )
+    assert ont.get_depth("leaf") == 1
