@@ -1,5 +1,7 @@
 """Tests for type definitions and protocols."""
 
+from typing import Any, get_args
+
 import numpy as np
 
 from pyrator.types import ArrayLike, ArrayModule, FrameLike, IntLike, RealLike
@@ -55,6 +57,10 @@ class TestTypeAliases:
 
         df: FrameLike = pd.DataFrame({"a": [1, 2, 3]})
         assert isinstance(df, pd.DataFrame)
+
+    def test_frame_like_does_not_include_any(self):
+        """FrameLike should not collapse static type checking via Any."""
+        assert Any not in get_args(FrameLike)
 
 
 class TestArrayModuleProtocol:
