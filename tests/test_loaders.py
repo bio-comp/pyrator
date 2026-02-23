@@ -38,6 +38,20 @@ else:
     pl = DummyPl  # type: ignore
 
 
+def _has_pandas_parquet_engine() -> bool:
+    """Return True when pandas can write parquet in this environment."""
+    if not has_pandas():
+        return False
+
+    try:
+        from pandas.io.parquet import get_engine
+
+        get_engine("auto")
+        return True
+    except Exception:
+        return False
+
+
 class TestValidateFile:
     """Test the _validate_file utility function."""
 
@@ -125,6 +139,8 @@ class TestLoadAny:
         """Test load_any with Parquet file."""
         if not has_pandas():
             pytest.skip("Pandas not available for creating test parquet")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
@@ -279,6 +295,8 @@ class TestLoadParquet:
         """Test basic Parquet loading."""
         if not has_pandas():
             pytest.skip("Pandas not available for creating test parquet")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
@@ -293,6 +311,8 @@ class TestLoadParquet:
         """Test Parquet loading preferring polars."""
         if not has_polars() or not has_pandas():
             pytest.skip("Polars and Pandas not available")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1], "b": [2]})
@@ -308,6 +328,8 @@ class TestLoadParquet:
         """Test Parquet loading preferring pandas."""
         if not has_pandas():
             pytest.skip("Pandas not available")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1], "b": [2]})
@@ -323,6 +345,8 @@ class TestLoadParquet:
 
         if not has_pandas() or not has_duckdb():
             pytest.skip("Pandas and DuckDB not available")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1], "b": [2]})
@@ -513,6 +537,8 @@ class TestScanParquet:
         """Test basic Parquet scanning."""
         if not has_pandas():
             pytest.skip("Pandas not available for creating test parquet")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
@@ -528,6 +554,8 @@ class TestScanParquet:
         """Test Parquet scanning preferring polars."""
         if not has_polars() or not has_pandas():
             pytest.skip("Polars and Pandas not available")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
@@ -549,6 +577,8 @@ class TestScanParquet:
 
         if not has_pandas():
             pytest.skip("Pandas not available for creating test parquet")
+        if not _has_pandas_parquet_engine():
+            pytest.skip("No parquet engine available for pandas in this environment")
 
         parquet_file = tmp_path / "test.parquet"
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
