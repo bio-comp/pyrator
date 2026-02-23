@@ -32,12 +32,9 @@ class PandasBackend(BaseBackend):
         return "pandas"
 
     def capabilities(self) -> set[str]:
-        base_capabilities = {"csv", "jsonl", "parquet"}
-        try:
-            __import__("pyarrow.parquet")
-        except ImportError:
-            return base_capabilities
-        return base_capabilities | {"streaming"}
+        # Pandas supports chunked CSV/JSONL scans without pyarrow.
+        # Parquet scanning still validates pyarrow at call time.
+        return {"csv", "jsonl", "parquet", "streaming"}
 
     def _pandas_backend(self) -> Any:
         """Return initialized pandas module or raise a dependency error."""

@@ -21,12 +21,31 @@ if TYPE_CHECKING:
 
 
 def _select_backend(prefer: str, required_capabilities: set[str] | None = None) -> DataBackend:
-    """Select backend, preferring capability-aware auto resolution."""
+    """Select backend, with graceful fallback when preferred backends are unavailable."""
     if prefer == "auto":
         if required_capabilities:
             return BackendRegistry.get_best_backend_with_capabilities(required_capabilities)
         return BackendRegistry.auto_select()
-    return BackendRegistry.get_backend(prefer)
+
+    try:
+        backend = BackendRegistry.get_backend(prefer)
+    except RuntimeError:
+        logger.warning(
+            f"Preferred backend '{prefer}' unavailable; falling back to capability-based selection."
+        )
+        if required_capabilities:
+            return BackendRegistry.get_best_backend_with_capabilities(required_capabilities)
+        return BackendRegistry.auto_select()
+
+    if required_capabilities and not required_capabilities.issubset(backend.capabilities()):
+        required = ", ".join(sorted(required_capabilities))
+        logger.warning(
+            f"Preferred backend '{prefer}' lacks required capabilities ({required}); "
+            "falling back to capability-based selection."
+        )
+        return BackendRegistry.get_best_backend_with_capabilities(required_capabilities)
+
+    return backend
 
 
 def _has_pyarrow_parquet() -> bool:
