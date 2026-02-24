@@ -149,6 +149,32 @@ def cohen_nominal_data() -> pd.DataFrame:
 
 
 @pytest.fixture
+def fleiss_nominal_data() -> pd.DataFrame:
+    """Three-rater nominal fixture with expected Fleiss' kappa = 1/3."""
+    rows: list[dict[str, str]] = []
+
+    # Per-item category counts (A/B), n=3 raters each:
+    # item_1: (3,0)
+    # item_2: (2,1)
+    # item_3: (1,2)
+    # item_4: (0,3)
+    #
+    # Pbar = 2/3, PbarE = 1/2 => kappa = (2/3 - 1/2) / (1 - 1/2) = 1/3.
+    ratings = {
+        "item_1": ["A", "A", "A"],
+        "item_2": ["A", "A", "B"],
+        "item_3": ["A", "B", "B"],
+        "item_4": ["B", "B", "B"],
+    }
+    raters = ["R1", "R2", "R3"]
+    for item_id, labels in ratings.items():
+        for rater_id, label in zip(raters, labels, strict=True):
+            rows.append({"item": item_id, "rater": rater_id, "label": label})
+
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
 def krippendorff_data():
     """
     Canonical 12-item dataset from Krippendorff (1980).
