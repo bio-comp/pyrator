@@ -30,7 +30,7 @@ def crows_pairs_path() -> str:
 
 
 @pytest.fixture
-def simple_ontology():
+def simple_ontology() -> Ontology:
     r"""
     A diamond graph for testing semantic distances.
 
@@ -175,7 +175,31 @@ def fleiss_nominal_data() -> pd.DataFrame:
 
 
 @pytest.fixture
-def krippendorff_data():
+def icc_continuous_data() -> pd.DataFrame:
+    """Continuous-rating fixture with deterministic ICC reference outputs."""
+    rows: list[dict[str, str | float]] = []
+
+    # Ratings matrix (items x raters):
+    # i1: [9, 2, 5]
+    # i2: [6, 1, 3]
+    # i3: [8, 4, 6]
+    # i4: [7, 1, 2]
+    ratings = {
+        "i1": {"A": 9.0, "B": 2.0, "C": 5.0},
+        "i2": {"A": 6.0, "B": 1.0, "C": 3.0},
+        "i3": {"A": 8.0, "B": 4.0, "C": 6.0},
+        "i4": {"A": 7.0, "B": 1.0, "C": 2.0},
+    }
+
+    for item_id, per_rater in ratings.items():
+        for rater_id, score in per_rater.items():
+            rows.append({"item": item_id, "rater": rater_id, "score": score})
+
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def krippendorff_data() -> pd.DataFrame:
     """
     Canonical 12-item dataset from Krippendorff (1980).
     Expected Alpha (Nominal) approx 0.375.
