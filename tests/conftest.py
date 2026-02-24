@@ -110,6 +110,45 @@ def dag_with_redundant_edge() -> tuple[dict[str, dict[str, str]], list[tuple[str
 
 
 @pytest.fixture
+def cohen_nominal_data() -> pd.DataFrame:
+    """Canonical two-rater nominal dataset with expected Cohen's kappa = 0.4."""
+    rows: list[dict[str, str]] = []
+
+    # Confusion table:
+    #               rater_B
+    #           yes(30)  no(20)
+    # rater_A yes  20       5
+    #         no   10      15
+    # po = 0.7, pe = 0.5 => kappa = 0.4
+    item_id = 0
+    for _ in range(20):
+        item = f"item_{item_id}"
+        rows.append({"item": item, "rater": "A", "label": "yes"})
+        rows.append({"item": item, "rater": "B", "label": "yes"})
+        item_id += 1
+
+    for _ in range(5):
+        item = f"item_{item_id}"
+        rows.append({"item": item, "rater": "A", "label": "yes"})
+        rows.append({"item": item, "rater": "B", "label": "no"})
+        item_id += 1
+
+    for _ in range(10):
+        item = f"item_{item_id}"
+        rows.append({"item": item, "rater": "A", "label": "no"})
+        rows.append({"item": item, "rater": "B", "label": "yes"})
+        item_id += 1
+
+    for _ in range(15):
+        item = f"item_{item_id}"
+        rows.append({"item": item, "rater": "A", "label": "no"})
+        rows.append({"item": item, "rater": "B", "label": "no"})
+        item_id += 1
+
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
 def krippendorff_data():
     """
     Canonical 12-item dataset from Krippendorff (1980).
