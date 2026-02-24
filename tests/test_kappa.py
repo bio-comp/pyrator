@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from pyrator.ira.kappa import cohen_kappa
+from pyrator.ira.kappa import cohen_kappa, fleiss_kappa
 
 
 def test_cohen_kappa_nominal_reference_value(cohen_nominal_data: pd.DataFrame) -> None:
@@ -44,3 +44,44 @@ def test_cohen_kappa_rejects_missing_ratings_per_item() -> None:
 
     with pytest.raises(ValueError, match="missing ratings"):
         cohen_kappa(df, item_col="item", rater_col="rater", label_col="label")
+
+
+def test_fleiss_kappa_nominal_reference_value(fleiss_nominal_data: pd.DataFrame) -> None:
+    """Fleiss' kappa should match the known reference value for this fixture."""
+    value = fleiss_kappa(
+        fleiss_nominal_data,
+        item_col="item",
+        rater_col="rater",
+        label_col="label",
+    )
+
+    assert value == pytest.approx(1.0 / 3.0, abs=1e-9)
+
+
+def test_fleiss_kappa_requires_same_ratings_per_item() -> None:
+    """Fleiss' kappa should reject datasets with variable ratings per item."""
+    df = pd.DataFrame(
+        [
+            {"item": "i1", "rater": "A", "label": "x"},
+            {"item": "i1", "rater": "B", "label": "x"},
+            {"item": "i2", "rater": "A", "label": "y"},
+        ]
+    )
+
+    with pytest.raises(ValueError, match="same number of ratings per item"):
+        fleiss_kappa(df, item_col="item", rater_col="rater", label_col="label")
+
+
+def test_fleiss_kappa_rejects_duplicate_item_rater_pairs() -> None:
+    """Fleiss' kappa requires one rating per (item, rater) pair."""
+    df = pd.DataFrame(
+        [
+            {"item": "i1", "rater": "A", "label": "x"},
+            {"item": "i1", "rater": "A", "label": "y"},
+            {"item": "i1", "rater": "B", "label": "x"},
+            {"item": "i1", "rater": "C", "label": "x"},
+        ]
+    )
+
+    with pytest.raises(ValueError, match="one rating per"):
+        fleiss_kappa(df, item_col="item", rater_col="rater", label_col="label")

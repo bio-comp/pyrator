@@ -77,3 +77,72 @@ def cohen_kappa(
         return 1.0 if abs(po - 1.0) < 1e-12 else 0.0
 
     return float((po - pe) / denom)
+
+
+def fleiss_kappa(
+    df: FrameLike,
+    *,
+    item_col: str,
+    rater_col: str,
+    label_col: str,
+) -> float:
+    """Compute Fleiss' kappa for many-rater nominal agreement.
+
+    Args:
+        df: Long-format annotation data.
+        item_col: Item/subject column.
+        rater_col: Rater/annotator column.
+        label_col: Nominal label column.
+
+    Returns:
+        Fleiss' kappa value.
+
+    Raises:
+        ValueError: If input is malformed or items do not share a common rating count.
+    """
+    if hasattr(df, "to_pandas"):
+        frame = df.to_pandas()
+    else:
+        frame = df
+
+    for col in (item_col, rater_col, label_col):
+        if col not in frame.columns:
+            raise ValueError(f"Missing required column: {col}")
+
+    duplicate_counts = frame.groupby([item_col, rater_col]).size()
+    duplicate_pairs = duplicate_counts[duplicate_counts > 1]
+    if not duplicate_pairs.empty:
+        raise ValueError("Fleiss' kappa requires one rating per (item, rater) pair.")
+
+    counts_by_item = frame.groupby(item_col).size()
+    if counts_by_item.empty:
+        raise ValueError("Fleiss' kappa requires at least one rated item.")
+
+    unique_counts = counts_by_item.unique()
+    if len(unique_counts) != 1:
+        raise ValueError(
+            "Fleiss' kappa requires the same number of ratings per item (strict mode)."
+        )
+
+    ratings_per_item = int(unique_counts[0])
+    if ratings_per_item < 2:
+        raise ValueError("Fleiss' kappa requires at least two ratings per item.")
+
+    item_label_counts = frame.groupby([item_col, label_col]).size().unstack(fill_value=0)
+    observed = item_label_counts.to_numpy(dtype=float)
+
+    n_items = observed.shape[0]
+    n = float(ratings_per_item)
+
+    # Fleiss (1971): per-item agreement P_i and expected agreement from pooled marginals.
+    p_i = (np.sum(observed**2, axis=1) - n) / (n * (n - 1.0))
+    p_bar = float(np.mean(p_i))
+
+    p_j = np.sum(observed, axis=0) / (n_items * n)
+    p_e_bar = float(np.sum(p_j**2))
+
+    denom = 1.0 - p_e_bar
+    if abs(denom) < 1e-12:
+        return 1.0 if abs(p_bar - 1.0) < 1e-12 else 0.0
+
+    return float((p_bar - p_e_bar) / denom)
