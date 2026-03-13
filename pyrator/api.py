@@ -12,6 +12,17 @@ from pyrator.ira.semantic import SemanticDistanceFactory
 from pyrator.ontology.core import Ontology
 from pyrator.types import FrameLike
 
+# Drift monitoring imports
+from pyrator.drift import (
+    psi,
+    cramer_v,
+    jsd,
+    w1 as wasserstein_distance,
+    mmd,
+    Monitor,
+    MonitorConfig,
+)
+
 AgreementMode = Literal["nominal", "semantic"]
 SemanticMetric = Literal["path", "lin", "resnik_norm"]
 
