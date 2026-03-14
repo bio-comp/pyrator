@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
 from typing import Literal
 
+import numpy as np
+import pandas as pd
+
+from pyrator.drift._utils import _to_pandas_frame, create_result_dict
 from pyrator.types import FrameLike
-
-
-def _to_pandas_frame(data: FrameLike) -> pd.DataFrame:
-    """Convert supported frame-like inputs to pandas DataFrame."""
-    return data.to_pandas() if hasattr(data, "to_pandas") else data
 
 
 def w1(
@@ -23,7 +20,8 @@ def w1(
     stratify: list[str] | None = None,
 ) -> pd.DataFrame:
     """
-    Calculate Wasserstein-1 distance (Earth Mover's Distance) for monitoring drift in ordered variables.
+    Calculate Wasserstein-1 distance (Earth Mover's Distance)
+    for monitoring drift in ordered variables.
 
     Args:
         data: Input data frame with window_id column
@@ -69,13 +67,9 @@ def w1(
     results = []
 
     for current_window in current_windows:
-        # Handle stratification
         if stratify:
-            # Create stratum combinations
             baseline_strata = df[df[window_col] == baseline_window][stratify].drop_duplicates()
-            current_strata = df[df[window_col] == current_window][stratify].drop_duplicates()
 
-            # For each stratum combination, calculate Wasserstein distance
             for _, stratum_row in baseline_strata.iterrows():
                 stratum_cond = np.ones(len(df), dtype=bool)
                 for stratum_col in stratify:
@@ -84,58 +78,36 @@ def w1(
                 stratum_baseline = df[stratum_cond & (df[window_col] == baseline_window)][col]
                 stratum_current = df[stratum_cond & (df[window_col] == current_window)][col]
 
-                # Skip if no data in either window
                 if len(stratum_baseline) == 0 or len(stratum_current) == 0:
                     continue
 
-                # Calculate Wasserstein distance for baseline and current
                 distance = _calculate_wasserstein_distance(
                     stratum_baseline, stratum_current, weight_type
                 )
 
-                # Create result entry
-                result = {
-                    "monitor_id": f"wasserstein_{col}",
-                    "window_id": current_window,
-                    "stratum": {k: v for k, v in stratum_row.items()},
-                    "metric": "wasserstein",
-                    "value": float(distance),
-                    "delta_from_baseline": float(
-                        distance
-                    ),  # For first comparison, delta is the value itself
-                    "ci_low": float(distance),  # Placeholder - would be calculated with bootstrap
-                    "ci_high": float(distance),  # Placeholder - would be calculated with bootstrap
-                    "p_value": 0.0,  # Placeholder - would be calculated with permutation test
-                    "threshold_level": "none",  # Would be determined by comparing to thresholds
-                }
+                result = create_result_dict(
+                    monitor_id=f"wasserstein_{col}",
+                    window_id=current_window,
+                    metric="wasserstein",
+                    value=distance,
+                    stratum={k: v for k, v in stratum_row.items()},
+                )
                 results.append(result)
         else:
-            # No stratification - calculate overall Wasserstein distance
             baseline_data = df[df[window_col] == baseline_window][col]
             current_data = df[df[window_col] == current_window][col]
 
-            # Skip if no data in either window
             if len(baseline_data) == 0 or len(current_data) == 0:
                 continue
 
-            # Calculate Wasserstein distance
             distance = _calculate_wasserstein_distance(baseline_data, current_data, weight_type)
 
-            # Create result entry
-            result = {
-                "monitor_id": f"wasserstein_{col}",
-                "window_id": current_window,
-                "stratum": {},  # No stratification
-                "metric": "wasserstein",
-                "value": float(distance),
-                "delta_from_baseline": float(
-                    distance
-                ),  # For first comparison, delta is the value itself
-                "ci_low": float(distance),  # Placeholder - would be calculated with bootstrap
-                "ci_high": float(distance),  # Placeholder - would be calculated with bootstrap
-                "p_value": 0.0,  # Placeholder - would be calculated with permutation test
-                "threshold_level": "none",  # Would be determined by comparing to thresholds
-            }
+            result = create_result_dict(
+                monitor_id=f"wasserstein_{col}",
+                window_id=current_window,
+                metric="wasserstein",
+                value=distance,
+            )
             results.append(result)
 
     return pd.DataFrame(results)

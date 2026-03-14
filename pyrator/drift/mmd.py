@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
 from typing import Literal
 
+import numpy as np
+import pandas as pd
+
+from pyrator.drift._utils import _to_pandas_frame, create_result_dict
 from pyrator.types import FrameLike
-
-
-def _to_pandas_frame(data: FrameLike) -> pd.DataFrame:
-    """Convert supported frame-like inputs to pandas DataFrame."""
-    return data.to_pandas() if hasattr(data, "to_pandas") else data
 
 
 def _rbf_kernel(x: np.ndarray, y: np.ndarray, sigma: float) -> np.ndarray:
@@ -21,14 +18,13 @@ def _rbf_kernel(x: np.ndarray, y: np.ndarray, sigma: float) -> np.ndarray:
     if y.ndim == 1:
         y = y.reshape(1, -1)
 
-    # Compute squared Euclidean distances
+    sigma_float = float(sigma)
     xx = np.sum(x**2, axis=1, keepdims=True)
     yy = np.sum(y**2, axis=1, keepdims=True)
     xy = np.dot(x, y.T)
     dist_sq = xx + yy.T - 2 * xy
 
-    # Compute RBF kernel
-    return np.exp(-dist_sq / (2 * sigma**2))
+    return np.exp(-dist_sq / (2 * sigma_float**2))  # type: ignore[no-any-return]
 
 
 def mmd(
@@ -41,7 +37,7 @@ def mmd(
     n_perm: int = 1000,
     seed: int | None = None,
     stratify: list[str] | None = None,
-) -> tuple[float, float]:
+) -> pd.DataFrame:
     """
     Calculate Maximum Mean Discrepancy (MMD) for monitoring embedding drift.
 
@@ -56,7 +52,7 @@ def mmd(
         stratify: List of column names to stratify by (default: None)
 
     Returns:
-        Tuple of (MMD statistic, p-value)
+        DataFrame with MMD values and metadata
 
     Formula:
         MMD²(P, Q) = ||μ_P - μ_Q||²_H
@@ -89,13 +85,9 @@ def mmd(
     results = []
 
     for current_window in current_windows:
-        # Handle stratification
         if stratify:
-            # Create stratum combinations
             baseline_strata = df[df[window_col] == baseline_window][stratify].drop_duplicates()
-            current_strata = df[df[window_col] == current_window][stratify].drop_duplicates()
 
-            # For each stratum combination, calculate MMD
             for _, stratum_row in baseline_strata.iterrows():
                 stratum_cond = np.ones(len(df), dtype=bool)
                 for stratum_col in stratify:
@@ -104,80 +96,51 @@ def mmd(
                 stratum_baseline = df[stratum_cond & (df[window_col] == baseline_window)]
                 stratum_current = df[stratum_cond & (df[window_col] == current_window)]
 
-                # Skip if no data in either window
                 if len(stratum_baseline) == 0 or len(stratum_current) == 0:
                     continue
 
-                # Extract embeddings
                 baseline_emb = stratum_baseline[emb_cols].values
                 current_emb = stratum_current[emb_cols].values
 
-                # Skip if not enough data
                 if len(baseline_emb) < 2 or len(current_emb) < 2:
                     continue
 
-                # Calculate MMD
                 mmd_stat, p_value = _calculate_mmd(baseline_emb, current_emb, kernel, sigma, n_perm)
 
-                # Create result entry
-                result = {
-                    "monitor_id": f"mmd_{'_'.join(emb_cols)}",
-                    "window_id": current_window,
-                    "stratum": {k: v for k, v in stratum_row.items()},
-                    "metric": "mmd",
-                    "value": float(mmd_stat),
-                    "delta_from_baseline": float(
-                        mmd_stat
-                    ),  # For first comparison, delta is the value itself
-                    "ci_low": float(mmd_stat),  # Placeholder
-                    "ci_high": float(mmd_stat),  # Placeholder
-                    "p_value": float(p_value),
-                    "threshold_level": "none",  # Would be determined by comparing to thresholds
-                }
+                result = create_result_dict(
+                    monitor_id=f"mmd_{'_'.join(emb_cols)}",
+                    window_id=current_window,
+                    metric="mmd",
+                    value=mmd_stat,
+                    stratum={k: v for k, v in stratum_row.items()},
+                    p_value=p_value,
+                )
                 results.append(result)
         else:
-            # No stratification - calculate overall MMD
             baseline_data = df[df[window_col] == baseline_window]
             current_data = df[df[window_col] == current_window]
 
-            # Skip if no data in either window
             if len(baseline_data) == 0 or len(current_data) == 0:
                 continue
 
-            # Extract embeddings
             baseline_emb = baseline_data[emb_cols].values
             current_emb = current_data[emb_cols].values
 
-            # Skip if not enough data
             if len(baseline_emb) < 2 or len(current_emb) < 2:
                 continue
 
-            # Calculate MMD
             mmd_stat, p_value = _calculate_mmd(baseline_emb, current_emb, kernel, sigma, n_perm)
 
-            # Create result entry
-            result = {
-                "monitor_id": f"mmd_{'_'.join(emb_cols)}",
-                "window_id": current_window,
-                "stratum": {},  # No stratification
-                "metric": "mmd",
-                "value": float(mmd_stat),
-                "delta_from_baseline": float(
-                    mmd_stat
-                ),  # For first comparison, delta is the value itself
-                "ci_low": float(mmd_stat),  # Placeholder
-                "ci_high": float(mmd_stat),  # Placeholder
-                "p_value": float(p_value),
-                "threshold_level": "none",  # Would be determined by comparing to thresholds
-            }
+            result = create_result_dict(
+                monitor_id=f"mmd_{'_'.join(emb_cols)}",
+                window_id=current_window,
+                metric="mmd",
+                value=mmd_stat,
+                p_value=p_value,
+            )
             results.append(result)
 
-    # Return first result for backward compatibility with existing API expectations
-    # In a full implementation, we would return all results
-    if results:
-        return results[0]["value"], results[0]["p_value"]
-    else:
-        return 0.0, 1.0
+    return pd.DataFrame(results)
 
 
 def _calculate_mmd(
@@ -188,20 +151,17 @@ def _calculate_mmd(
     n_perm: int,
 ) -> tuple[float, float]:
     """Calculate MMD statistic and p-value using permutation test."""
-    # Combine samples
     combined = np.vstack([x, y])
     n_x = len(x)
     n_y = len(y)
 
-    # Calculate kernel bandwidth if using median heuristic
+    sigma_val: float
     if sigma == "median_heuristic":
-        # Compute pairwise distances
         if len(combined) > 1:
             from scipy.spatial.distance import pdist
 
             distances = pdist(combined, metric="euclidean")
-            sigma_val = np.median(distances)
-            # Avoid zero bandwidth
+            sigma_val = float(np.median(distances))
             sigma_val = max(sigma_val, 1e-10)
         else:
             sigma_val = 1.0
@@ -233,26 +193,20 @@ def _calculate_mmd(
     mmd_sq = max(mmd_sq, 0)
     mmd_stat = np.sqrt(mmd_sq)
 
-    # Permutation test
     if n_perm > 0:
-        # Combine labels for permutation
         labels = np.array([0] * n_x + [1] * n_y)
-        perm_stats = []
+        perm_stats: list[float] = []
 
         for _ in range(n_perm):
-            # Shuffle labels
             shuffled_labels = np.random.permutation(labels)
 
-            # Split according to shuffled labels
             x_shuffled = combined[shuffled_labels == 0]
             y_shuffled = combined[shuffled_labels == 1]
 
-            # Skip if not enough data in either group
             if len(x_shuffled) < 2 or len(y_shuffled) < 2:
                 perm_stats.append(0.0)
                 continue
 
-            # Recompute kernel matrix for shuffled data
             combined_shuffled = (
                 np.vstack([x_shuffled, y_shuffled])
                 if len(x_shuffled) > 0 and len(y_shuffled) > 0
@@ -299,8 +253,8 @@ def _calculate_mmd(
                 perm_stats.append(0.0)
 
         # Calculate p-value
-        perm_stats = np.array(perm_stats)
-        p_value = np.mean(perm_stats >= mmd_stat)
+        perm_stats_np = np.array(perm_stats, dtype=float)
+        p_value = float(np.mean(perm_stats_np >= mmd_stat))
     else:
         p_value = 0.0
 
