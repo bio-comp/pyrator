@@ -3,34 +3,30 @@
 from __future__ import annotations
 
 import pandas as pd
+import pandera as pa
 import pytest
 
-from pyrator.api import AnnotatorModel, ModelResults
+from pyrator.api import AgreementResults, KrippendorffEstimator
 from pyrator.ontology.core import Ontology
 
 
-def test_annotator_model_nominal_fit_with_configurable_columns() -> None:
-    """Nominal fit should work with non-canonical column names."""
+def test_krippendorff_estimator_nominal_fit_with_canonical_columns() -> None:
+    """Nominal fit should work with canonical column names."""
     df = pd.DataFrame(
         [
-            {"item": "i1", "rater": "A", "label": "x"},
-            {"item": "i1", "rater": "B", "label": "x"},
-            {"item": "i2", "rater": "A", "label": "y"},
-            {"item": "i2", "rater": "B", "label": "y"},
-            {"item": "i3", "rater": "A", "label": "x"},
-            {"item": "i3", "rater": "B", "label": "y"},
+            {"item_id": "i1", "annotator_id": "A", "label_id": "x"},
+            {"item_id": "i1", "annotator_id": "B", "label_id": "x"},
+            {"item_id": "i2", "annotator_id": "A", "label_id": "y"},
+            {"item_id": "i2", "annotator_id": "B", "label_id": "y"},
+            {"item_id": "i3", "annotator_id": "A", "label_id": "x"},
+            {"item_id": "i3", "annotator_id": "B", "label_id": "y"},
         ]
     )
 
-    model = AnnotatorModel(
-        mode="nominal",
-        item_col="item",
-        rater_col="rater",
-        label_col="label",
-    )
-    results = model.fit(df)
+    estimator = KrippendorffEstimator(mode="nominal")
+    results = estimator.fit(df)
 
-    assert isinstance(results, ModelResults)
+    assert isinstance(results, AgreementResults)
     assert results.mode == "nominal"
     assert results.metric is None
     assert -1.0 <= results.alpha <= 1.0
@@ -51,8 +47,8 @@ def test_annotator_model_nominal_fit_with_configurable_columns() -> None:
     assert agreement_b == pytest.approx(2.0 / 3.0, abs=1e-12)
 
 
-def test_annotator_model_nominal_fit_with_canonical_defaults() -> None:
-    """Default canonical columns should work without explicit mapping."""
+def test_krippendorff_estimator_with_default_mode() -> None:
+    """Default mode should be nominal without explicit setting."""
     df = pd.DataFrame(
         [
             {"item_id": "i1", "annotator_id": "A", "label_id": "yes"},
@@ -62,8 +58,9 @@ def test_annotator_model_nominal_fit_with_canonical_defaults() -> None:
         ]
     )
 
-    results = AnnotatorModel(mode="nominal").fit(df)
-    assert isinstance(results, ModelResults)
+    estimator = KrippendorffEstimator()
+    results = estimator.fit(df)
+    assert isinstance(results, AgreementResults)
     assert len(results.get_consensus_labels()) == 2
 
 
@@ -75,7 +72,7 @@ def test_annotator_model_nominal_fit_with_canonical_defaults() -> None:
         ("resnik_norm", 1.0),
     ],
 )
-def test_annotator_model_semantic_fit_with_supported_metrics(
+def test_krippendorff_estimator_semantic_fit_with_supported_metrics(
     simple_ontology: Ontology,
     metric: str,
     expected_alpha: float,
@@ -83,55 +80,41 @@ def test_annotator_model_semantic_fit_with_supported_metrics(
     """Semantic mode should support path/lin/resnik_norm with strict metric validation."""
     df = pd.DataFrame(
         [
-            {"item": "i1", "rater": "r1", "label": "A"},
-            {"item": "i1", "rater": "r2", "label": "C"},
-            {"item": "i2", "rater": "r1", "label": "A"},
-            {"item": "i2", "rater": "r2", "label": "B"},
+            {"item_id": "i1", "annotator_id": "r1", "label_id": "A"},
+            {"item_id": "i1", "annotator_id": "r2", "label_id": "C"},
+            {"item_id": "i2", "annotator_id": "r1", "label_id": "A"},
+            {"item_id": "i2", "annotator_id": "r2", "label_id": "B"},
         ]
     )
-    model = AnnotatorModel(
+    estimator = KrippendorffEstimator(
         ontology=simple_ontology,
         mode="semantic",
         metric=metric,
-        item_col="item",
-        rater_col="rater",
-        label_col="label",
     )
 
-    results = model.fit(df)
+    results = estimator.fit(df)
     assert results.mode == "semantic"
     assert results.metric == metric
     assert results.alpha == pytest.approx(expected_alpha, abs=1e-12)
 
 
-def test_annotator_model_semantic_requires_ontology() -> None:
+def test_krippendorff_estimator_semantic_requires_ontology() -> None:
     """Semantic mode should fail fast if ontology is not provided."""
-    df = pd.DataFrame(
-        [
-            {"item": "i1", "rater": "A", "label": "A"},
-            {"item": "i1", "rater": "B", "label": "B"},
-        ]
-    )
-    model = AnnotatorModel(
-        mode="semantic",
-        metric="path",
-        item_col="item",
-        rater_col="rater",
-        label_col="label",
-    )
-
     with pytest.raises(ValueError, match="requires an ontology"):
-        model.fit(df)
+        KrippendorffEstimator(
+            mode="semantic",
+            metric="path",
+        )
 
 
-def test_annotator_model_rejects_unknown_semantic_metric(simple_ontology: Ontology) -> None:
+def test_krippendorff_estimator_rejects_unknown_semantic_metric(simple_ontology: Ontology) -> None:
     """Only path/lin/resnik_norm should be accepted in semantic mode."""
-    with pytest.raises(ValueError, match="Unsupported semantic metric"):
-        AnnotatorModel(ontology=simple_ontology, mode="semantic", metric="lca")
+    with pytest.raises(ValueError, match="Unsupported metric"):
+        KrippendorffEstimator(ontology=simple_ontology, mode="semantic", metric="lca")
 
 
-def test_annotator_model_rejects_missing_required_columns() -> None:
-    """Configured item/rater/label columns are required."""
+def test_krippendorff_estimator_rejects_missing_required_columns() -> None:
+    """Canonical item_id/annotator_id/label_id columns are required."""
     df = pd.DataFrame(
         [
             {"item": "i1", "rater": "A", "label": "x"},
@@ -139,33 +122,28 @@ def test_annotator_model_rejects_missing_required_columns() -> None:
         ]
     )
 
-    model = AnnotatorModel(mode="nominal")
-    with pytest.raises(ValueError, match="Missing required column"):
-        model.fit(df)
+    estimator = KrippendorffEstimator(mode="nominal")
+    with pytest.raises(pa.errors.SchemaError):
+        estimator.fit(df)
 
 
-def test_annotator_model_rejects_duplicate_item_rater_pairs() -> None:
+def test_krippendorff_estimator_rejects_duplicate_item_rater_pairs() -> None:
     """Strict mode requires exactly one rating per (item, rater) pair."""
     df = pd.DataFrame(
         [
-            {"item": "i1", "rater": "A", "label": "x"},
-            {"item": "i1", "rater": "A", "label": "y"},
-            {"item": "i1", "rater": "B", "label": "x"},
+            {"item_id": "i1", "annotator_id": "A", "label_id": "x"},
+            {"item_id": "i1", "annotator_id": "A", "label_id": "y"},
+            {"item_id": "i1", "annotator_id": "B", "label_id": "x"},
         ]
     )
-    model = AnnotatorModel(
-        mode="nominal",
-        item_col="item",
-        rater_col="rater",
-        label_col="label",
-    )
+    estimator = KrippendorffEstimator(mode="nominal")
 
-    with pytest.raises(ValueError, match="one rating per \\(item, rater\\) pair"):
-        model.fit(df)
+    with pytest.raises(ValueError, match="exactly one rating per"):
+        estimator.fit(df)
 
 
-def test_model_results_get_hard_items_validates_top_n() -> None:
-    """ModelResults.get_hard_items should reject non-positive top_n values."""
+def test_agreement_results_get_hard_items_validates_top_n() -> None:
+    """AgreementResults.get_hard_items should reject non-positive top_n values."""
     df = pd.DataFrame(
         [
             {"item_id": "i1", "annotator_id": "A", "label_id": "x"},
@@ -174,7 +152,8 @@ def test_model_results_get_hard_items_validates_top_n() -> None:
             {"item_id": "i2", "annotator_id": "B", "label_id": "x"},
         ]
     )
-    results = AnnotatorModel(mode="nominal").fit(df)
+    estimator = KrippendorffEstimator(mode="nominal")
+    results = estimator.fit(df)
 
     with pytest.raises(ValueError, match="top_n must be positive"):
         results.get_hard_items(top_n=0)

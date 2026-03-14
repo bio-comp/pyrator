@@ -1,5 +1,9 @@
 """Public package exports."""
 
-from pyrator.api import AnnotatorModel, ModelResults
+from pyrator.api import AgreementResults, AnnotationSchema, KrippendorffEstimator
 
-__all__ = ["AnnotatorModel", "ModelResults"]
+__all__ = [
+    "AgreementResults",
+    "AnnotationSchema",
+    "KrippendorffEstimator",
+]
