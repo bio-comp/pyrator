@@ -1,0 +1,172 @@
+# Codex Local TODO
+
+## WIP
+- Completed initial repository audit.
+- Compared `README.md` architecture to current `pyrator/` implementation.
+- Captured baseline checks:
+  - `uv run pytest tests/ -q` (11 failing tests).
+  - `uv run ruff check .` (style issues in notebooks/tests).
+  - `uv run mypy pyrator/` (47 strict typing errors).
+- Adapted `AGENTS.md` from HMMPY template to a `pyrator`-specific guide with:
+  - strict TDD workflow,
+  - issue/branch/push/cleanup loop,
+  - explicit "no commit unless user asks",
+  - local WIP tracker requirement.
+- Created and switched to branch `issue-7-loader-fallback`.
+- Created issue `#7` and implemented loader/backend fixes:
+  - graceful fallback when preferred backend is unavailable,
+  - pandas streaming capability no longer gated by `pyarrow`,
+  - parquet tests now skip cleanly when local parquet writer is unavailable.
+- Verification:
+  - `uv run pytest tests/test_loaders.py -q` passes.
+  - `uv run pytest tests/ -q` passes (with expected optional-dependency skips).
+  - `uv run ruff check pyrator/data/loaders.py pyrator/data/backends/pandas.py tests/test_loaders.py` passes.
+  - `uv run mypy ...` still reports pre-existing strict-typing backlog (unchanged global baseline).
+- Reviewed older external gap analysis and opened still-applicable backlog tickets:
+  - `#8` classical IRA metrics
+  - `#9` AnnotatorModel facade
+  - `#10` ontology CSV/JSON loader hardening
+  - `#11` semantic metric formula alignment
+  - `#12` bayesian module bootstrap
+  - `#13` clustering pipeline
+  - `#14` drift module
+- Split classical metrics work into dedicated issues:
+  - `#16` Cohen's kappa
+  - `#17` Fleiss' kappa
+  - `#18` ICC
+  - linked from umbrella `#8`
+- Completed issue `#16` implementation and opened PR:
+  - branch: `issue-16-cohen-kappa`
+  - PR `#19`: https://github.com/bio-comp/pyrator/pull/19
+  - includes nominal `cohen_kappa`, fixture, tests, and IRA export wiring
+- PR `#19` merged by user and remote deleted.
+- Local cleanup completed for `#16`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #19)
+  - deleted local branch `issue-16-cohen-kappa`
+- Completed issue `#17` implementation and opened PR:
+  - branch: `issue-17-fleiss-kappa`
+  - PR `#20`: https://github.com/bio-comp/pyrator/pull/20
+  - includes strict `fleiss_kappa`, fixture, tests, and IRA export wiring
+- Captured policy decision for Fleiss behavior:
+  - strict-by-default remains the standard
+  - optional auto-drop is deferred as enhancement issue `#21`
+- PR `#20` merged by user and remote branch deleted.
+- Local cleanup completed for `#17`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #20)
+  - deleted local branch `issue-17-fleiss-kappa`
+- Created and switched to branch `issue-18-icc-metrics` for next work item.
+- Implemented issue `#18` (ICC) on `issue-18-icc-metrics` with strict complete-case validation:
+  - added `pyrator/ira/icc.py`
+  - supports `ICC2_1`, `ICC2_k`, `ICC3_1`, `ICC3_k`
+  - added explicit wrappers (`icc_2_1`, `icc_2_k`, `icc_3_1`, `icc_3_k`)
+  - wired exports via `pyrator/ira/__init__.py`
+  - added fixture `icc_continuous_data` and tests in `tests/test_icc.py`
+- Verification for `#18`:
+  - `uv run pytest tests/test_icc.py -q` passes
+  - `uv run ruff check pyrator/ira/icc.py pyrator/ira/__init__.py tests/test_icc.py tests/conftest.py` passes
+  - `uv run mypy pyrator/ira/icc.py pyrator/ira/__init__.py tests/test_icc.py tests/conftest.py` passes
+  - `uv run pytest tests/ -q` passes (with expected optional-dependency skips)
+- Opened PR for issue `#18`:
+  - branch: `issue-18-icc-metrics`
+  - PR `#22`: https://github.com/bio-comp/pyrator/pull/22
+- PR `#22` merged by user and remote branch deleted.
+- Local cleanup completed for `#18`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #22)
+  - deleted local branch `issue-18-icc-metrics`
+- Closed delivered tracking issues:
+  - `#16` (Cohen) closed
+  - `#17` (Fleiss) closed
+  - `#8` umbrella classical IRA tracker closed after `#19`, `#20`, `#22`
+- Created and switched to branch `issue-9-annotator-model-facade`.
+- Implemented issue `#9` as thin facade over existing IRA stack:
+  - added `pyrator/api.py` with `AnnotatorModel` and `ModelResults`
+  - supports `mode="nominal"` and `mode="semantic"`
+  - semantic metrics supported with strict validation: `path`, `lin`, `resnik_norm`
+  - supports configurable column names with canonical defaults:
+    - `item_col="item_id"`
+    - `rater_col="annotator_id"`
+    - `label_col="label_id"`
+  - strict input validation for required columns, nulls, duplicates, and semantic prerequisites
+  - minimal functional results accessors:
+    - `get_hard_items(top_n=...)`
+    - `get_annotator_profiles()`
+    - `get_consensus_labels()`
+  - exported facade from `pyrator/__init__.py`
+  - added comprehensive API tests in `tests/test_api.py`
+- Verification for `#9`:
+  - RED observed: `uv run pytest tests/test_api.py -q` failed with missing `pyrator.api`
+  - GREEN: `uv run pytest tests/test_api.py -q` passes
+  - `uv run ruff check pyrator/api.py pyrator/__init__.py tests/test_api.py` passes
+  - `uv run mypy pyrator/api.py pyrator/__init__.py tests/test_api.py` passes
+  - `uv run pytest tests/ -q` passes (with expected optional-dependency skips)
+- Opened PR for issue `#9`:
+  - branch: `issue-9-annotator-model-facade`
+  - PR `#23`: https://github.com/bio-comp/pyrator/pull/23
+- PR `#23` merged by user and remote branch deleted.
+- Local cleanup completed for `#9`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #23)
+  - deleted local branch `issue-9-annotator-model-facade`
+- Finalized `#7`:
+  - committed changes on branch `issue-7-loader-fallback`
+  - pushed to origin
+  - opened PR `#15`: https://github.com/bio-comp/pyrator/pull/15
+- PR `#15` merged by user and remote branch deleted.
+- Local cleanup completed:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #15)
+  - deleted local branch `issue-7-loader-fallback`
+- Created and switched to branch `issue/26-drift-cleanup`.
+- Implemented drift cleanup per issue `#26`:
+  - extracted shared `_to_pandas_frame` and `create_result_dict` to `pyrator/drift/_utils.py`
+  - DRYed up PSI calculation with `_calculate_psi` helper
+  - fixed MMD return type from `tuple[float, float]` to `pd.DataFrame` for consistency
+  - refactored all metric files to use shared utilities
+  - fixed circular import in `monitor.py`
+  - added type annotations for mypy strict mode
+- Verification:
+  - `uv run pytest tests/drift/ -v` passes
+  - `uv run mypy pyrator/drift/` passes (no issues)
+  - `uv run ruff check pyrator/drift/ --fix` passes
+- Opened PR `#27`: https://github.com/bio-comp/pyrator/pull/27
+- PR `#27` merged by user and remote branch deleted.
+- Local cleanup completed for `#26`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #27)
+  - deleted local branch `issue/26-drift-cleanup`
+- Created and switched to branch `issue/28-estimator-pattern`.
+- Implemented API refactoring per issue `#28`:
+  - Deleted monolithic `AnnotatorModel`
+  - Created modular architecture:
+    - `pyrator/api/_schemas.py`: pandera validation
+    - `pyrator/api/_results.py`: strictly typed `AgreementResults`
+    - `pyrator/api/_estimators.py`: `KrippendorffEstimator`
+  - Required canonical columns (item_id, annotator_id, label_id)
+  - Removed custom column mapping feature
+  - Updated exports in `__init__.py` and `pyrator/__init__.py`
+  - Updated tests for new API
+- Verification:
+  - `uv run pytest tests/test_api.py -v` passes (10 tests)
+  - `uv run mypy pyrator/api/` passes (no issues)
+  - `uv run ruff check pyrator/api/` passes
+- Opened PR `#29`: https://github.com/bio-comp/pyrator/pull/29
+- Created and switched to branch `issue/30-perf-fixes`.
+- Implemented performance/clarity fixes per issue `#30`:
+  - KrippendorffAlpha: added symmetric distance matrix validation
+  - Fleiss kappa: clarified error message with alternative suggestion
+  - KrippendorffEstimator: compute merged df once instead of twice
+  - Monitor: refactored if/elif chain to dictionary dispatch
+  - Ontology: extracted IC calculation to private _calculate_ic method
+- Verification:
+  - `uv run pytest tests/test_api.py tests/test_ontology_*.py tests/drift/ -v` passes (23 tests)
+  - `uv run mypy ...` passes (no issues)
+  - `uv run ruff check ...` passes
+- Opened PR `#31`: https://github.com/bio-comp/pyrator/pull/31
+
+## Next
+- Select next small issue and create dedicated branch/PR.
+- Treat any future relaxed handling (issue `#21`) as opt-in only and non-blocking.
+- Recommended next implementation issue: `#10` (Ontology.from_csv/from_json hardening).
