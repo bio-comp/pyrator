@@ -57,9 +57,10 @@ def cohen_kappa(
         np.unique(np.concatenate([matrix[first].to_numpy(), matrix[second].to_numpy()]))
     )
     confusion = (
-        matrix.groupby([first, second], observed=False).size().unstack(fill_value=0).reindex(
-            index=labels, columns=labels, fill_value=0
-        )
+        matrix.groupby([first, second], observed=False)
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=labels, columns=labels, fill_value=0)
     )
 
     observed = confusion.to_numpy(dtype=float)
@@ -121,7 +122,8 @@ def fleiss_kappa(
     unique_counts = counts_by_item.unique()
     if len(unique_counts) != 1:
         raise ValueError(
-            "Fleiss' kappa requires the same number of ratings per item (strict mode)."
+            "Fleiss' kappa strictly requires the same number of ratings per item. "
+            "For varying raters or missing data, use Krippendorff's Alpha instead."
         )
 
     ratings_per_item = int(unique_counts[0])

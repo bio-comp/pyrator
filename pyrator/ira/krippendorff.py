@@ -82,6 +82,8 @@ class KrippendorffAlpha:
                     f"Distance matrix shape {D2.shape} does not match "
                     f"unique label count ({self.n_labels})"
                 )
+            if not np.allclose(D2, D2.T):
+                raise ValueError("Distance matrix must be symmetric.")
         else:
             D2 = self._get_standard_metric(metric)  # type: ignore[arg-type]
 
