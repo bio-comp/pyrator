@@ -67,8 +67,20 @@ class KrippendorffEstimator:
             alpha = ka.calculate(metric="custom", distance_matrix=distance_matrix)
 
         consensus = self._build_consensus_labels(data)
-        hard_items = self._build_hard_items(data, consensus)
-        profiles = self._build_annotator_profiles(data, consensus)
+
+        with_consensus = data.merge(
+            consensus.rename("consensus_label"),
+            left_on="item_id",
+            right_index=True,
+            how="left",
+            validate="many_to_one",
+        )
+        with_consensus["is_disagreement"] = (
+            with_consensus["label_id"] != with_consensus["consensus_label"]
+        )
+
+        hard_items = self._build_hard_items(with_consensus)
+        profiles = self._build_annotator_profiles(with_consensus)
 
         return AgreementResults(
             alpha=float(alpha),
@@ -84,18 +96,7 @@ class KrippendorffEstimator:
         consensus.name = "consensus_label"
         return consensus
 
-    def _build_hard_items(self, data: pd.DataFrame, consensus: pd.Series) -> pd.DataFrame:
-        with_consensus = data.merge(
-            consensus.rename("consensus_label"),
-            left_on="item_id",
-            right_index=True,
-            how="left",
-            validate="many_to_one",
-        )
-        with_consensus["is_disagreement"] = (
-            with_consensus["label_id"] != with_consensus["consensus_label"]
-        )
-
+    def _build_hard_items(self, with_consensus: pd.DataFrame) -> pd.DataFrame:
         hard = (
             with_consensus.groupby("item_id", sort=True)
             .agg(
@@ -111,18 +112,7 @@ class KrippendorffEstimator:
             kind="mergesort",
         ).reset_index(drop=True)
 
-    def _build_annotator_profiles(self, data: pd.DataFrame, consensus: pd.Series) -> pd.DataFrame:
-        with_consensus = data.merge(
-            consensus.rename("consensus_label"),
-            left_on="item_id",
-            right_index=True,
-            how="left",
-            validate="many_to_one",
-        )
-        with_consensus["is_disagreement"] = (
-            with_consensus["label_id"] != with_consensus["consensus_label"]
-        )
-
+    def _build_annotator_profiles(self, with_consensus: pd.DataFrame) -> pd.DataFrame:
         profiles = (
             with_consensus.groupby("annotator_id", sort=True)
             .agg(

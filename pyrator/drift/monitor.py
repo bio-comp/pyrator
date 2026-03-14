@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 import pandas as pd
 
@@ -20,33 +20,25 @@ class MonitorConfig:
 
     name: str
     metric: Literal["psi", "cramer_v", "jsd", "wasserstein", "mmd"]
-    # For PSI
     col: Optional[str] = None
     bins: Literal["quantile", "fd", "scott", "rice", "sturges", "sqrt"] = "quantile"
     n_bins: int = 10
     cutpoints: Optional[list[float]] = None
-    # For Cramér's V
     x: Optional[str] = None
     y: Optional[str] = None
     bias_correct: bool = True
-    # For JSD
     dist_cols: Optional[list[str]] = None
     groupby: Optional[str] = None
     sqrt: bool = True
-    # For Wasserstein
     weight_type: Literal["uniform", "ic"] = "uniform"
-    # For MMD
     emb_cols: Optional[list[str]] = None
     kernel: Literal["rbf"] = "rbf"
     sigma: Literal["median_heuristic"] | float = "median_heuristic"
     n_perm: int = 1000
     seed: Optional[int] = None
-    # Common parameters
     window_col: str = "window_id"
     stratify: Optional[list[str]] = None
     eps: float = 1e-6
-
-    # Alert thresholds
     warn: Optional[float] = None
     crit: Optional[float] = None
     semantics: Literal["abs", "delta"] = "abs"
@@ -54,6 +46,38 @@ class MonitorConfig:
 
 class Monitor:
     """Drift monitor that executes a specific metric calculation."""
+
+    _DISPATCH_MAP: dict[str, tuple[Callable[..., Any], dict[str, Any]]] = {
+        "psi": (
+            psi,
+            {
+                "required": {"col": "col"},
+                "params": ["col", "bins", "n_bins", "cutpoints", "stratify", "eps"],
+            },
+        ),
+        "cramer_v": (
+            cramer_v,
+            {"required": {"x": "x", "y": "y"}, "params": ["x", "y", "bias_correct", "stratify"]},
+        ),
+        "jsd": (
+            jsd,
+            {
+                "required": {"dist_cols": "dist_cols"},
+                "params": ["dist_cols", "groupby", "eps", "sqrt"],
+            },
+        ),
+        "wasserstein": (
+            w1,
+            {"required": {"col": "col"}, "params": ["col", "weight_type", "stratify"]},
+        ),
+        "mmd": (
+            mmd,
+            {
+                "required": {"emb_cols": "emb_cols"},
+                "params": ["emb_cols", "kernel", "sigma", "n_perm", "seed", "stratify"],
+            },
+        ),
+    }
 
     def __init__(self, config: MonitorConfig):
         self.config = config
@@ -69,66 +93,27 @@ class Monitor:
             For most metrics: DataFrame with results
             For MMD: tuple of (statistic, p-value)
         """
-        if self.config.metric == "psi":
-            if not self.config.col:
-                raise ValueError("PSI monitor requires 'col' parameter")
-            return psi(
-                data,
-                col=self.config.col,
-                window_col=self.config.window_col,
-                bins=self.config.bins,
-                n_bins=self.config.n_bins,
-                cutpoints=self.config.cutpoints,
-                stratify=self.config.stratify,
-                eps=self.config.eps,
-            )
-        elif self.config.metric == "cramer_v":
-            if not self.config.x or not self.config.y:
-                raise ValueError("Cramér's V monitor requires 'x' and 'y' parameters")
-            return cramer_v(
-                data,
-                x=self.config.x,
-                y=self.config.y,
-                window_col=self.config.window_col,
-                bias_correct=self.config.bias_correct,
-                stratify=self.config.stratify,
-            )
-        elif self.config.metric == "jsd":
-            if not self.config.dist_cols:
-                raise ValueError("JSD monitor requires 'dist_cols' parameter")
-            return jsd(
-                data,
-                dist_cols=self.config.dist_cols,
-                window_col=self.config.window_col,
-                groupby=self.config.groupby,
-                eps=self.config.eps,
-                sqrt=self.config.sqrt,
-            )
-        elif self.config.metric == "wasserstein":
-            if not self.config.col:
-                raise ValueError("Wasserstein monitor requires 'col' parameter")
-            return w1(
-                data,
-                col=self.config.col,
-                window_col=self.config.window_col,
-                weight_type=self.config.weight_type,
-                stratify=self.config.stratify,
-            )
-        elif self.config.metric == "mmd":
-            if not self.config.emb_cols:
-                raise ValueError("MMD monitor requires 'emb_cols' parameter")
-            return mmd(
-                data,
-                emb_cols=self.config.emb_cols,
-                window_col=self.config.window_col,
-                kernel=self.config.kernel,
-                sigma=self.config.sigma,
-                n_perm=self.config.n_perm,
-                seed=self.config.seed,
-                stratify=self.config.stratify,
-            )
-        else:
+        dispatch_entry = self._DISPATCH_MAP.get(self.config.metric)
+        if dispatch_entry is None:
             raise ValueError(f"Unsupported metric: {self.config.metric}")
+
+        func, config = dispatch_entry
+
+        for param, attr in config["required"].items():
+            if getattr(self.config, attr) is None:
+                raise ValueError(
+                    f"{self.config.metric.capitalize()} monitor requires '{param}' parameter"
+                )
+
+        kwargs: dict[str, Any] = {"data": data, "window_col": self.config.window_col}
+        for param in config["params"]:
+            value = getattr(self.config, param, None)
+            if value is not None:
+                kwargs[param] = value
+
+        # The underlying metric functions can return DataFrame or tuple
+        result = func(**kwargs)
+        return result  # type: ignore[no-any-return]
 
     def evaluate_thresholds(self, value: float) -> str:
         """

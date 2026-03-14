@@ -91,45 +91,13 @@ class Ontology:
             )
 
         # IC Calculation
-        ic_metadata = {"alpha": smoothing_alpha, "log_base": "e"}
         if corpus_counts is not None:
-            # $L$: base nodes (leaves or atomic concepts)
-            # For simplicity, we define base nodes as leaves if not specified.
-            # But the README says: "For DAGs, map each corpus occurrence to exactly one $v\in L$."
-            # We'll assume $L$ is all nodes that have counts in corpus_counts.
-
-            # $count_{desc}(c) = \sum_{v \in desc(c) \cap L} count_{corpus}(v)$
-            # Compute descendant closure for IC calculation
-
-            desc_closure: dict[str, set[str]] = {nid: {nid} for nid in final_nodes}
-            # Reverse topo order for descendants
-            for nid in reversed(topo_order):
-                for child_id in children.get(nid, set()):
-                    desc_closure[nid] |= desc_closure[child_id]
-
-            total_corpus_count = sum(corpus_counts.values())
-            num_nodes = len(final_nodes)
-
-            for nid in final_nodes:
-                # count_desc(c)
-                node_descendants = desc_closure[nid]
-                desc_count = sum(corpus_counts.get(d, 0) for d in node_descendants)
-
-                # p_hat(c) = (count_desc(c) + alpha) / (total_corpus_count + alpha * |V|)
-                p_hat = (desc_count + smoothing_alpha) / (
-                    total_corpus_count + smoothing_alpha * num_nodes
-                )
-                ic = -math.log(p_hat)
-
-                # Update node with IC
-                old = final_nodes[nid]
-                final_nodes[nid] = Node(
-                    id=old.id,
-                    name=old.name,
-                    depth=old.depth,
-                    ic=ic,
-                    meta=old.meta,
-                )
+            final_nodes = cls._calculate_ic(
+                final_nodes, children, topo_order, corpus_counts, smoothing_alpha
+            )
+            ic_metadata = {"alpha": smoothing_alpha, "log_base": "e"}
+        else:
+            ic_metadata = {"alpha": smoothing_alpha, "log_base": "e"} if smoothing_alpha else {}
 
         ontology = cls(
             version=version,
@@ -148,6 +116,57 @@ class Ontology:
             final_nodes.keys(), ontology._tr_children
         )
         return ontology
+
+    @classmethod
+    def _calculate_ic(
+        cls,
+        nodes: dict[str, Node],
+        children: dict[str, set[str]],
+        topo_order: list[str],
+        corpus_counts: dict[str, int],
+        alpha: float,
+    ) -> dict[str, Node]:
+        """
+        Calculate Information Content for all nodes and return updated nodes.
+
+        Mutates Node objects in-place with calculated IC values.
+
+        Args:
+            nodes: Dictionary of node_id -> Node
+            children: Dictionary of parent_id -> set of child_ids
+            topo_order: Topological order of nodes
+            corpus_counts: Corpus frequency counts for base nodes
+            alpha: Smoothing parameter
+
+        Returns:
+            Dictionary of node_id -> Node with IC values
+        """
+        desc_closure: dict[str, set[str]] = {nid: {nid} for nid in nodes}
+        for nid in reversed(topo_order):
+            for child_id in children.get(nid, set()):
+                desc_closure[nid] |= desc_closure[child_id]
+
+        total_corpus_count = sum(corpus_counts.values())
+        num_nodes = len(nodes)
+
+        result: dict[str, Node] = {}
+        for nid in nodes:
+            node_descendants = desc_closure[nid]
+            desc_count = sum(corpus_counts.get(d, 0) for d in node_descendants)
+
+            p_hat = (desc_count + alpha) / (total_corpus_count + alpha * num_nodes)
+            ic = -math.log(p_hat)
+
+            old = nodes[nid]
+            result[nid] = Node(
+                id=old.id,
+                name=old.name,
+                depth=old.depth,
+                ic=ic,
+                meta=old.meta,
+            )
+
+        return result
 
     def get_lca(self, u: str, v: str) -> str | None:
         """
