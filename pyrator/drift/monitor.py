@@ -12,6 +12,7 @@ from pyrator.drift.jsd import jsd
 from pyrator.drift.mmd import mmd
 from pyrator.drift.psi import psi
 from pyrator.drift.wasserstein import w1
+from pyrator.types import require_non_none
 
 
 @dataclass
@@ -100,10 +101,10 @@ class Monitor:
         func, config = dispatch_entry
 
         for param, attr in config["required"].items():
-            if getattr(self.config, attr) is None:
-                raise ValueError(
-                    f"{self.config.metric.capitalize()} monitor requires '{param}' parameter"
-                )
+            require_non_none(
+                getattr(self.config, attr),
+                f"{self.config.metric.capitalize()} monitor requires '{param}' parameter",
+            )
 
         kwargs: dict[str, Any] = {"data": data, "window_col": self.config.window_col}
         for param in config["params"]:

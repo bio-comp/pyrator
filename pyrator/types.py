@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 from numbers import Integral, Real
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 if TYPE_CHECKING:
     # Kept in TYPE_CHECKING to avoid a runtime dependency on ibis.
     from ibis.expr.types import Expr as IbisExpr
 else:
     IbisExpr = object
+
+
+T = TypeVar("T")
+
+
+def require_non_none(value: T | None, msg: str = "unexpected None") -> T:
+    """Assert that a value is not None, raising ValueError if it is."""
+    if value is None:
+        raise ValueError(msg)
+    return value
 
 
 @runtime_checkable
