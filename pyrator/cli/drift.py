@@ -5,12 +5,82 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-import typer
 import pandas as pd
+import typer
 
-from pyrator.drift import Monitor, MonitorConfig
+from pyrator.drift import (
+    CramerVMonitorConfig,
+    JsdMonitorConfig,
+    MmdMonitorConfig,
+    Monitor,
+    MonitorConfig,
+    PsiMonitorConfig,
+    WassersteinMonitorConfig,
+)
 
 app = typer.Typer(help="Drift monitoring commands.")
+
+
+def load_config(config_dict: dict) -> MonitorConfig:
+    """Load a MonitorConfig from a dictionary."""
+    metric = config_dict.get("metric")
+    if metric is None:
+        raise ValueError("Config must include 'metric' field")
+
+    common = {
+        "name": config_dict.get("name", "unnamed"),
+        "warn": config_dict.get("warn"),
+        "crit": config_dict.get("crit"),
+        "semantics": config_dict.get("semantics", "abs"),
+        "window_col": config_dict.get("window_col", "window_id"),
+    }
+
+    match metric:
+        case "psi":
+            return PsiMonitorConfig(
+                **common,
+                col=config_dict.get("col"),
+                bins=config_dict.get("bins", "quantile"),
+                n_bins=config_dict.get("n_bins", 10),
+                cutpoints=config_dict.get("cutpoints"),
+                stratify=config_dict.get("stratify"),
+                eps=config_dict.get("eps", 1e-6),
+            )
+        case "cramer_v":
+            return CramerVMonitorConfig(
+                **common,
+                x=config_dict.get("x"),
+                y=config_dict.get("y"),
+                bias_correct=config_dict.get("bias_correct", True),
+                stratify=config_dict.get("stratify"),
+            )
+        case "jsd":
+            return JsdMonitorConfig(
+                **common,
+                dist_cols=config_dict.get("dist_cols"),
+                groupby=config_dict.get("groupby"),
+                sqrt=config_dict.get("sqrt", True),
+                eps=config_dict.get("eps", 1e-6),
+            )
+        case "wasserstein":
+            return WassersteinMonitorConfig(
+                **common,
+                col=config_dict.get("col"),
+                weight_type=config_dict.get("weight_type", "uniform"),
+                stratify=config_dict.get("stratify"),
+            )
+        case "mmd":
+            return MmdMonitorConfig(
+                **common,
+                emb_cols=config_dict.get("emb_cols"),
+                kernel=config_dict.get("kernel", "rbf"),
+                sigma=config_dict.get("sigma", "median_heuristic"),
+                n_perm=config_dict.get("n_perm", 1000),
+                seed=config_dict.get("seed"),
+                stratify=config_dict.get("stratify"),
+            )
+        case _:
+            raise ValueError(f"Unknown metric: {metric}")
 
 
 @app.command("run")
@@ -66,7 +136,7 @@ def run_drift(
         raise ValueError("Unsupported config format. Use JSON or YAML.")
 
     # Create monitor from config
-    monitor_config = MonitorConfig(**config_dict)
+    monitor_config = load_config(config_dict)
     monitor = Monitor(monitor_config)
 
     # Execute monitoring
