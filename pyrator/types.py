@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from numbers import Integral, Real
 from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, TypeVar, runtime_checkable
 
 if TYPE_CHECKING:
@@ -49,8 +48,12 @@ class IbisDataFrame:
     def __init__(self, expr: IbisExpr):
         self._expr = expr
 
+    def to_pandas(self) -> Any:
+        """Convert ibis expression to pandas DataFrame."""
+        return self._expr.to_pandas()
+
 
 FrameLike: TypeAlias = DataFrameProtocol | IbisDataFrame
 ArrayLike: TypeAlias = Any
-IntLike: TypeAlias = Integral
-RealLike: TypeAlias = Real
+IntLike: TypeAlias = int
+RealLike: TypeAlias = int | float
