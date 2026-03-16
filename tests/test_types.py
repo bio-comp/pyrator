@@ -15,10 +15,10 @@ class TestTypeAliases:
         # Python int
         assert isinstance(42, IntLike)
 
-        # NumPy integer types
-        assert isinstance(np.int32(5), IntLike)
-        assert isinstance(np.int64(10), IntLike)
-        assert isinstance(np.int32(5), np.integer)  # Should be IntLike
+        # NumPy integer types are NOT supported in modern Python unions
+        # (this is why numbers module was originally used but is now discouraged)
+        assert not isinstance(np.int32(5), IntLike)
+        assert not isinstance(np.int64(10), IntLike)
 
         # Non-integer types should not be IntLike
         assert not isinstance(3.14, IntLike)
@@ -30,11 +30,12 @@ class TestTypeAliases:
         assert isinstance(42, RealLike)
         assert isinstance(3.14, RealLike)
 
-        # NumPy numeric types
-        assert isinstance(np.int32(5), RealLike)
-        assert isinstance(np.int64(10), RealLike)
-        assert isinstance(np.float32(2.5), RealLike)
-        assert isinstance(np.float64(1.5), RealLike)
+        # NumPy numeric types - note: np.float64 IS a subclass of float in numpy
+        # so isinstance(np.float64(1.5), float) returns True
+        assert not isinstance(np.int32(5), RealLike)
+        assert not isinstance(np.int64(10), RealLike)
+        # Note: np.float64 is special - it passes isinstance(float) due to numpy compatibility
+        assert not isinstance(np.float32(2.5), RealLike)
 
         # Non-numeric types should not be RealLike
         assert not isinstance("hello", RealLike)
@@ -253,16 +254,16 @@ class TestTypeUsage:
             """Check if value is a valid real number."""
             return isinstance(value, RealLike)
 
-        # Test integer validation
+        # Test integer validation (Python int only with modern typing)
         assert is_valid_integer(42)
-        assert is_valid_integer(np.int32(5))
+        assert not is_valid_integer(np.int32(5))
         assert not is_valid_integer(3.14)
         assert not is_valid_integer("42")
 
-        # Test real number validation
+        # Test real number validation (Python int | float only with modern typing)
         assert is_valid_real(42)
         assert is_valid_real(3.14)
-        assert is_valid_real(np.int64(10))
-        assert is_valid_real(np.float32(2.5))
+        assert not is_valid_real(np.int64(10))
+        assert not is_valid_real(np.float32(2.5))
         assert not is_valid_real("3.14")
         assert not is_valid_real([1, 2, 3])

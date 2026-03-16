@@ -13,6 +13,7 @@ from pyrator.api._schemas import AnnotationSchema
 from pyrator.ira.krippendorff import KrippendorffAlpha
 from pyrator.ira.semantic import SemanticDistanceFactory
 from pyrator.ontology.core import Ontology
+from pyrator.types import require_non_none
 
 
 class KrippendorffEstimator:
@@ -58,9 +59,8 @@ class KrippendorffEstimator:
         else:
             metric_used = self.metric
             labels = sorted(data["label_id"].unique(), key=lambda x: str(x))
-            distance_matrix = SemanticDistanceFactory(
-                self.ontology  # type: ignore[arg-type]
-            ).compute_distance_matrix(
+            ontology = require_non_none(self.ontology, "Ontology required for semantic mode")
+            distance_matrix = SemanticDistanceFactory(ontology).compute_distance_matrix(
                 labels,
                 metric=metric_used,
             )
@@ -132,5 +132,7 @@ class KrippendorffEstimator:
     @staticmethod
     def _deterministic_mode(values: pd.Series) -> object:
         counts = values.value_counts()
+        if counts.empty:
+            return float("nan")
         candidates = counts[counts == counts.max()].index.tolist()
         return sorted(candidates, key=lambda x: str(x))[0]
