@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Literal, Optional, cast
 
 import pandas as pd
 
@@ -17,104 +17,157 @@ from pyrator.types import require_non_none
 
 @dataclass
 class MonitorConfig:
-    """Configuration for a drift monitor."""
+    """Base configuration for all drift monitors."""
 
     name: str
     metric: Literal["psi", "cramer_v", "jsd", "wasserstein", "mmd"]
+    warn: Optional[float] = None
+    crit: Optional[float] = None
+    semantics: Literal["abs", "delta"] = "abs"
+    window_col: str = "window_id"
+
+
+@dataclass
+class PsiMonitorConfig(MonitorConfig):
+    """Configuration for PSI drift monitor."""
+
+    metric: Literal["psi"] = "psi"
     col: Optional[str] = None
     bins: Literal["quantile", "fd", "scott", "rice", "sturges", "sqrt"] = "quantile"
     n_bins: int = 10
     cutpoints: Optional[list[float]] = None
+    stratify: Optional[list[str]] = None
+    eps: float = 1e-6
+
+
+@dataclass
+class CramerVMonitorConfig(MonitorConfig):
+    """Configuration for Cramer's V drift monitor."""
+
+    metric: Literal["cramer_v"] = "cramer_v"
     x: Optional[str] = None
     y: Optional[str] = None
     bias_correct: bool = True
+    stratify: Optional[list[str]] = None
+
+
+@dataclass
+class JsdMonitorConfig(MonitorConfig):
+    """Configuration for JSD drift monitor."""
+
+    metric: Literal["jsd"] = "jsd"
     dist_cols: Optional[list[str]] = None
     groupby: Optional[str] = None
     sqrt: bool = True
+    eps: float = 1e-6
+
+
+@dataclass
+class WassersteinMonitorConfig(MonitorConfig):
+    """Configuration for Wasserstein distance drift monitor."""
+
+    metric: Literal["wasserstein"] = "wasserstein"
+    col: Optional[str] = None
     weight_type: Literal["uniform", "ic"] = "uniform"
+    stratify: Optional[list[str]] = None
+
+
+@dataclass
+class MmdMonitorConfig(MonitorConfig):
+    """Configuration for MMD drift monitor."""
+
+    metric: Literal["mmd"] = "mmd"
     emb_cols: Optional[list[str]] = None
     kernel: Literal["rbf"] = "rbf"
     sigma: Literal["median_heuristic"] | float = "median_heuristic"
     n_perm: int = 1000
     seed: Optional[int] = None
-    window_col: str = "window_id"
     stratify: Optional[list[str]] = None
-    eps: float = 1e-6
-    warn: Optional[float] = None
-    crit: Optional[float] = None
-    semantics: Literal["abs", "delta"] = "abs"
 
 
 class Monitor:
     """Drift monitor that executes a specific metric calculation."""
 
-    _DISPATCH_MAP: dict[str, tuple[Callable[..., Any], dict[str, Any]]] = {
-        "psi": (
-            psi,
-            {
-                "required": {"col": "col"},
-                "params": ["col", "bins", "n_bins", "cutpoints", "stratify", "eps"],
-            },
-        ),
-        "cramer_v": (
-            cramer_v,
-            {"required": {"x": "x", "y": "y"}, "params": ["x", "y", "bias_correct", "stratify"]},
-        ),
-        "jsd": (
-            jsd,
-            {
-                "required": {"dist_cols": "dist_cols"},
-                "params": ["dist_cols", "groupby", "eps", "sqrt"],
-            },
-        ),
-        "wasserstein": (
-            w1,
-            {"required": {"col": "col"}, "params": ["col", "weight_type", "stratify"]},
-        ),
-        "mmd": (
-            mmd,
-            {
-                "required": {"emb_cols": "emb_cols"},
-                "params": ["emb_cols", "kernel", "sigma", "n_perm", "seed", "stratify"],
-            },
-        ),
-    }
-
     def __init__(self, config: MonitorConfig):
         self.config = config
 
     def execute(self, data: pd.DataFrame) -> pd.DataFrame | tuple[float, float]:
-        """
-        Execute the monitor on the provided data.
+        """Execute the monitor on the provided data."""
+        if isinstance(self.config, PsiMonitorConfig):
+            return self._execute_psi(data)
+        if isinstance(self.config, CramerVMonitorConfig):
+            return self._execute_cramer_v(data)
+        if isinstance(self.config, JsdMonitorConfig):
+            return self._execute_jsd(data)
+        if isinstance(self.config, WassersteinMonitorConfig):
+            return self._execute_wasserstein(data)
+        if isinstance(self.config, MmdMonitorConfig):
+            return self._execute_mmd(data)
+        raise ValueError(f"Unsupported metric: {type(self.config)}")
 
-        Args:
-            data: Input data frame
+    def _execute_psi(self, data: pd.DataFrame) -> pd.DataFrame:
+        cfg = cast(PsiMonitorConfig, self.config)
+        require_non_none(cfg.col, "PSI monitor requires 'col' parameter")
+        return psi(
+            data=data,
+            col=cfg.col,  # type: ignore[arg-type]
+            window_col=cfg.window_col,
+            bins=cfg.bins,
+            n_bins=cfg.n_bins,
+            cutpoints=cfg.cutpoints,
+            stratify=cfg.stratify,
+            eps=cfg.eps,
+        )
 
-        Returns:
-            For most metrics: DataFrame with results
-            For MMD: tuple of (statistic, p-value)
-        """
-        dispatch_entry = self._DISPATCH_MAP.get(self.config.metric)
-        if dispatch_entry is None:
-            raise ValueError(f"Unsupported metric: {self.config.metric}")
+    def _execute_cramer_v(self, data: pd.DataFrame) -> pd.DataFrame:
+        cfg = cast(CramerVMonitorConfig, self.config)
+        require_non_none(cfg.x, "CramerV monitor requires 'x' parameter")
+        require_non_none(cfg.y, "CramerV monitor requires 'y' parameter")
+        return cramer_v(
+            data=data,
+            x=cfg.x,  # type: ignore[arg-type]
+            y=cfg.y,  # type: ignore[arg-type]
+            window_col=cfg.window_col,
+            bias_correct=cfg.bias_correct,
+            stratify=cfg.stratify,
+        )
 
-        func, config = dispatch_entry
+    def _execute_jsd(self, data: pd.DataFrame) -> pd.DataFrame:
+        cfg = cast(JsdMonitorConfig, self.config)
+        require_non_none(cfg.dist_cols, "JSD monitor requires 'dist_cols' parameter")
+        return jsd(
+            data=data,
+            dist_cols=cfg.dist_cols,  # type: ignore[arg-type]
+            window_col=cfg.window_col,
+            groupby=cfg.groupby,
+            eps=cfg.eps,
+            sqrt=cfg.sqrt,
+        )
 
-        for param, attr in config["required"].items():
-            require_non_none(
-                getattr(self.config, attr),
-                f"{self.config.metric.capitalize()} monitor requires '{param}' parameter",
-            )
+    def _execute_wasserstein(self, data: pd.DataFrame) -> pd.DataFrame:
+        cfg = cast(WassersteinMonitorConfig, self.config)
+        require_non_none(cfg.col, "Wasserstein monitor requires 'col' parameter")
+        return w1(
+            data=data,
+            col=cfg.col,  # type: ignore[arg-type]
+            window_col=cfg.window_col,
+            weight_type=cfg.weight_type,
+            stratify=cfg.stratify,
+        )
 
-        kwargs: dict[str, Any] = {"data": data, "window_col": self.config.window_col}
-        for param in config["params"]:
-            value = getattr(self.config, param, None)
-            if value is not None:
-                kwargs[param] = value
-
-        # The underlying metric functions can return DataFrame or tuple
-        result = func(**kwargs)
-        return result  # type: ignore[no-any-return]
+    def _execute_mmd(self, data: pd.DataFrame) -> tuple[float, float]:
+        cfg = cast(MmdMonitorConfig, self.config)
+        require_non_none(cfg.emb_cols, "MMD monitor requires 'emb_cols' parameter")
+        return mmd(  # type: ignore[return-value]
+            data=data,
+            emb_cols=cfg.emb_cols,  # type: ignore[arg-type]
+            window_col=cfg.window_col,
+            kernel=cfg.kernel,
+            sigma=cfg.sigma,
+            n_perm=cfg.n_perm,
+            seed=cfg.seed,
+            stratify=cfg.stratify,
+        )
 
     def evaluate_thresholds(self, value: float) -> str:
         """
