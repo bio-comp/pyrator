@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import csv
 import json
-import numbers
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -285,7 +284,7 @@ def load_parquet(
 def scan_csv(
     path: str | Path,
     *,
-    chunk_size: numbers.Integral = 200_000,  # type: ignore[assignment]
+    chunk_size: int = 200_000,
     sep: str = ",",
     prefer: Literal["auto", "polars", "pandas"] = "auto",
 ) -> Iterator[FrameLike]:
@@ -317,7 +316,7 @@ def scan_csv(
 def scan_jsonl(
     path: str | Path,
     *,
-    chunk_size: numbers.Integral = 50_000,  # type: ignore[assignment]
+    chunk_size: int = 50_000,
     prefer: Literal["auto", "polars", "pandas"] = "auto",
 ) -> Iterator[FrameLike]:
     """
@@ -347,7 +346,7 @@ def scan_jsonl(
 def scan_parquet(
     path: str | Path,
     *,
-    chunk_size: numbers.Integral = 100_000,  # type: ignore[assignment]
+    chunk_size: int = 100_000,
     prefer: Literal["auto", "polars", "pandas", "pyarrow"] = "auto",
 ) -> Iterator[FrameLike]:
     """
