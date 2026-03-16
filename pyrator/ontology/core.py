@@ -400,29 +400,76 @@ class Ontology:
     def from_csv(cls, path: str | Path, **kwargs: Any) -> "Ontology":
         """
         Build an Ontology from a CSV file.
-        Expected format: columns for node_id, parent_id, etc.
-        (Implementation depends on exact expected CSV schema, but usually it's edges).
+
+        Expected format: CSV with 'parent' and 'child' columns representing edges.
+        Nodes are inferred from the edge list.
+
+        Args:
+            path: Path to CSV file
+            **kwargs: Passed to Ontology.build()
+
+        Returns:
+            Ontology instance
         """
-        # Placeholder for basic implementation or specific logic
-        # For now, we'll assume a simple (parent, child) edge list CSV
         import pandas as pd
 
         df = pd.read_csv(path)
-        # Assume columns 'parent', 'child'
+
+        required_cols = {"parent", "child"}
+        missing_cols = required_cols - set(df.columns)
+        if missing_cols:
+            raise ValueError(
+                f"CSV missing required columns: {missing_cols}. Expected columns: parent, child"
+            )
+
+        if df.empty:
+            raise ValueError("CSV file is empty")
+
         edges = list(df[["parent", "child"]].itertuples(index=False, name=None))
-        # Collect all nodes
-        nodes: dict[str, dict[str, Any]] = {nid: {} for nid in set(df["parent"]) | set(df["child"])}
+        all_nodes = set(df["parent"]) | set(df["child"])
+        nodes: dict[str, dict[str, Any]] = {nid: {} for nid in all_nodes}
+
         return cls.build(version="1.0", nodes=nodes, edges=edges, **kwargs)
 
     @classmethod
     def from_json(cls, path: str | Path, **kwargs: Any) -> "Ontology":
-        """Build an Ontology from a JSON file."""
+        """
+        Build an Ontology from a JSON file.
+
+        Expected format: JSON with 'nodes' dict and 'edges' list of [parent, child] pairs.
+
+        Args:
+            path: Path to JSON file
+            **kwargs: Passed to Ontology.build()
+
+        Returns:
+            Ontology instance
+        """
         with open(path) as f:
             data = json.load(f)
-        # data should have 'nodes' and 'edges'
-        return cls.build(
-            version=data.get("version", "1.0"), nodes=data["nodes"], edges=data["edges"], **kwargs
-        )
+
+        if not isinstance(data, dict):
+            raise ValueError(f"JSON must be an object, got {type(data).__name__}")
+
+        if "nodes" not in data:
+            raise ValueError("JSON missing required key: 'nodes'")
+        if "edges" not in data:
+            raise ValueError("JSON missing required key: 'edges'")
+
+        nodes = data["nodes"]
+        edges = data["edges"]
+
+        if not isinstance(nodes, dict):
+            raise ValueError(f"'nodes' must be a dict, got {type(nodes).__name__}")
+        if not isinstance(edges, list):
+            raise ValueError(f"'edges' must be a list, got {type(edges).__name__}")
+
+        if not nodes:
+            raise ValueError("'nodes' dict cannot be empty")
+        if not edges:
+            raise ValueError("'edges' list cannot be empty")
+
+        return cls.build(version=data.get("version", "1.0"), nodes=nodes, edges=edges, **kwargs)
 
     def metrics(self) -> list[dict[str, Any]]:
         """Return a list of available metrics and their details."""
