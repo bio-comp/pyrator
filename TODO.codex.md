@@ -165,6 +165,29 @@
   - `uv run mypy ...` passes (no issues)
   - `uv run ruff check ...` passes
 - Opened PR `#31`: https://github.com/bio-comp/pyrator/pull/31
+- PR `#31` merged by user and remote branch deleted.
+- Local cleanup completed for `#30`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #31)
+  - deleted local branch `issue/30-perf-fixes`
+- Opened PR `#32`: https://github.com/bio-comp/pyrator/pull/32
+- PR `#32` merged by user and remote branch deleted.
+- Local cleanup completed for `#31`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #32)
+  - deleted local branch `issue/31-require-non-none-helper`
+- Created and switched to branch `issue/10-ontology-validation`.
+- Implemented validation hardening per issue `#10`:
+  - Added column validation for from_csv (require parent, child)
+  - Added key validation for from_json (require nodes, edges)
+  - Added empty file/array checks
+  - Added type validation
+  - Added helpful error messages
+- Verification:
+  - `uv run pytest tests/test_ontology_core_additional.py -v` passes (9 tests)
+  - `uv run mypy pyrator/ontology/core.py` passes
+  - `uv run ruff check pyrator/ontology/core.py` passes
+- Opened PR `#33`: https://github.com/bio-comp/pyrator/pull/33
 
 ## Next
 - Select next small issue and create dedicated branch/PR.
