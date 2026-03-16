@@ -188,8 +188,19 @@
   - `uv run mypy pyrator/ontology/core.py` passes
   - `uv run ruff check pyrator/ontology/core.py` passes
 - Opened PR `#33`: https://github.com/bio-comp/pyrator/pull/33
+- PR `#33` merged by user and remote branch deleted.
+- Local cleanup completed for `#10`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #33)
+  - deleted local branch `issue/10-ontology-validation`
+- Code review identified new issues:
+  - #34: IbisDataFrame missing to_pandas method (bug)
+  - #35: Empty Series IndexError in _deterministic_mode (bug)
+  - #36: Use require_non_none instead of type: ignore (code smell)
+  - #37: Replace numbers module with modern typing (tech debt)
+  - #38: MonitorConfig violates ISP (design smell)
 
 ## Next
-- Select next small issue and create dedicated branch/PR.
-- Treat any future relaxed handling (issue `#21`) as opt-in only and non-blocking.
-- Recommended next implementation issue: `#10` (Ontology.from_csv/from_json hardening).
+- Implement fixes for issues #34, #35 (high priority bugs)
+- Then address #36, #37 (medium priority)
+- Consider #38 for future refactoring
