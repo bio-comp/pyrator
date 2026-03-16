@@ -83,3 +83,51 @@ def test_build_skips_redundant_dfs_cycle_check(monkeypatch: pytest.MonkeyPatch) 
         edges=[("root", "leaf")],
     )
     assert ont.get_depth("leaf") == 1
+
+
+def test_from_csv_missing_columns(tmp_path: "pytest.TempPathFactory") -> None:
+    """from_csv should fail cleanly when required columns are missing."""
+    csv_path = tmp_path / "bad.csv"
+    csv_path.write_text("id,name\nA,B\n")
+
+    with pytest.raises(ValueError, match="missing required columns"):
+        Ontology.from_csv(csv_path)
+
+
+def test_from_csv_empty_file(tmp_path: "pytest.TempPathFactory") -> None:
+    """from_csv should fail cleanly when CSV is empty."""
+    csv_path = tmp_path / "empty.csv"
+    csv_path.write_text("parent,child\n")
+
+    with pytest.raises(ValueError, match="empty"):
+        Ontology.from_csv(csv_path)
+
+
+def test_from_json_missing_keys(tmp_path: "pytest.TempPathFactory") -> None:
+    """from_json should fail cleanly when required keys are missing."""
+    import json
+
+    json_path = tmp_path / "bad.json"
+    json_path.write_text(json.dumps({"version": "1.0"}))
+
+    with pytest.raises(ValueError, match="missing required key"):
+        Ontology.from_json(json_path)
+
+    json_path.write_text(json.dumps({"nodes": {}, "edges": []}))
+    with pytest.raises(ValueError, match="cannot be empty"):
+        Ontology.from_json(json_path)
+
+
+def test_from_json_invalid_structure(tmp_path: "pytest.TempPathFactory") -> None:
+    """from_json should fail cleanly when data types are wrong."""
+    import json
+
+    json_path = tmp_path / "bad2.json"
+    json_path.write_text(json.dumps({"nodes": [], "edges": []}))
+
+    with pytest.raises(ValueError, match="must be a dict"):
+        Ontology.from_json(json_path)
+
+    json_path.write_text(json.dumps({"nodes": {"a": {}}, "edges": "not a list"}))
+    with pytest.raises(ValueError, match="must be a list"):
+        Ontology.from_json(json_path)
