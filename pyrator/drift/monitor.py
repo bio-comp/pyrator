@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, cast
+from typing import Literal, Optional, cast
 
 import pandas as pd
 

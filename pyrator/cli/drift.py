@@ -84,7 +84,7 @@ def load_config(config_dict: dict) -> MonitorConfig:
 
 
 @app.command("run")
-def run_drift(
+def run_drift(  # noqa: C901
     config: str = typer.Option(
         ..., "--config", "-c", help="Path to drift monitoring configuration file (YAML or JSON)"
     ),
@@ -184,7 +184,8 @@ def explain_drift(
     Explain drift monitoring results for a specific monitor and window.
 
     Example:
-        pyrator drift explain case_mix_age_psi --data data.parquet --window 2025-10 --config drift.yml
+        pyrator drift explain case_mix_age_psi --data data.parquet \\
+            --window 2025-10 --config drift.yml
     """
     typer.echo(f"Explanation for monitor '{monitor_name}' in window '{window}'")
     typer.echo("This feature is not yet implemented.")

@@ -9,7 +9,7 @@ from pyrator.drift._utils import _to_pandas_frame, create_result_dict
 from pyrator.types import FrameLike
 
 
-def jsd(
+def jsd(  # noqa: C901
     data: FrameLike,
     dist_cols: list[str],
     window_col: str = "window_id",
