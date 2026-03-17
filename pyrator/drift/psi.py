@@ -117,6 +117,7 @@ def psi(  # noqa: C901
     col: str,
     window_col: str = "window_id",
     *,
+    baseline: str | None = None,
     bins: Literal["quantile", "fd", "scott", "rice", "sturges", "sqrt"] = "quantile",
     n_bins: int = 10,
     cutpoints: list[float] | None = None,
@@ -130,6 +131,7 @@ def psi(  # noqa: C901
         data: Input data frame with window_id column
         col: Column name to calculate PSI for
         window_col: Column name indicating time window (default: "window_id")
+        baseline: Specific window to use as baseline. If None, uses first unique window.
         bins: Binning strategy for numeric data (default: "quantile")
         n_bins: Number of bins for quantile-based binning (default: 10)
         cutpoints: Custom cutpoints for binning (overrides bins and n_bins if provided)
@@ -159,9 +161,15 @@ def psi(  # noqa: C901
     if len(windows) < 2:
         raise ValueError("PSI requires at least 2 different windows")
 
-    # Use first window as baseline, compare against all others
-    baseline_window = windows[0]
-    current_windows = windows[1:]
+    # Determine baseline window
+    if baseline is not None:
+        if baseline not in windows:
+            raise ValueError(f"Baseline window '{baseline}' not found in data")
+        baseline_window = baseline
+    else:
+        baseline_window = windows[0]
+
+    current_windows = [w for w in windows if w != baseline_window]
 
     results = []
 

@@ -10,12 +10,13 @@ from pyrator.drift._utils import _to_pandas_frame, create_result_dict
 from pyrator.types import FrameLike
 
 
-def cramer_v(
+def cramer_v(  # noqa: C901
     data: FrameLike,
     x: str,
     y: str,
     window_col: str = "window_id",
     *,
+    baseline: str | None = None,
     bias_correct: bool = True,
     stratify: list[str] | None = None,
 ) -> pd.DataFrame:
@@ -27,6 +28,7 @@ def cramer_v(
         x: First column name (categorical)
         y: Second column name (categorical)
         window_col: Column name indicating time window (default: "window_id")
+        baseline: Specific window to use as baseline. If None, uses first unique window.
         bias_correct: Whether to apply bias correction (default: True)
         stratify: List of column names to stratify by (default: None)
 
@@ -56,9 +58,15 @@ def cramer_v(
     if len(windows) < 2:
         raise ValueError("Cramér's V requires at least 2 different windows")
 
-    # Use first window as baseline, compare against all others
-    baseline_window = windows[0]
-    current_windows = windows[1:]
+    # Determine baseline window
+    if baseline is not None:
+        if baseline not in windows:
+            raise ValueError(f"Baseline window '{baseline}' not found in data")
+        baseline_window = baseline
+    else:
+        baseline_window = windows[0]
+
+    current_windows = [w for w in windows if w != baseline_window]
 
     results = []
 
