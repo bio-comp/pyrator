@@ -27,7 +27,7 @@ def _rbf_kernel(x: np.ndarray, y: np.ndarray, sigma: float) -> np.ndarray:
     return np.exp(-dist_sq / (2 * sigma_float**2))  # type: ignore[no-any-return]
 
 
-def mmd(
+def mmd(  # noqa: C901
     data: FrameLike,
     emb_cols: list[str],
     window_col: str = "window_id",

@@ -11,7 +11,7 @@ from pyrator.drift._utils import _to_pandas_frame, create_result_dict
 from pyrator.types import FrameLike
 
 
-def w1(
+def w1(  # noqa: C901
     data: FrameLike,
     col: str,
     window_col: str = "window_id",

@@ -112,7 +112,7 @@ def _calculate_psi(
     return float(np.sum(psi_vals))
 
 
-def psi(
+def psi(  # noqa: C901
     data: FrameLike,
     col: str,
     window_col: str = "window_id",
