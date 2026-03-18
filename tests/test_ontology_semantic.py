@@ -1,18 +1,22 @@
+"""Tests for ontology semantic metrics."""
+
 import math
+
 import pytest
+
 from pyrator.ontology.core import Ontology
 
 
 def test_ontology_ic_calculation():
-    """
+    r"""
     Test IC calculation in a simple tree.
-    
+
          Root (10)
         /    \
        A (5)  B (5)
       / \      \
      A1(2) A2(3) B1(5)
-    
+
     Counts (at nodes): Root:0, A:0, B:0, A1:2, A2:3, B1:5
     Descendant Counts:
     Root: 2+3+5 = 10
@@ -21,11 +25,11 @@ def test_ontology_ic_calculation():
     A1: 2
     A2: 3
     B1: 5
-    
+
     alpha = 1
     |V| = 6
     Denominator: 10 + 1 * 6 = 16
-    
+
     p_hat(Root) = (10 + 1) / 16 = 11/16
     p_hat(A) = (5 + 1) / 16 = 6/16
     p_hat(B) = (5 + 1) / 16 = 6/16
@@ -79,7 +83,7 @@ def test_ontology_semantic_metrics():
 
 
 def test_lca_policies():
-    """
+    r"""
     DAG with multiple LCAs:
          Root
           |
@@ -88,7 +92,7 @@ def test_lca_policies():
        P1    P2
        | \  / |
        C1    C2
-    
+
     LCA(C1, C2) = {P1, P2}
     """
     nodes = {n: {} for n in ["root", "m", "p1", "p2", "c1", "c2"]}
@@ -97,21 +101,20 @@ def test_lca_policies():
         ("m", "p1"),
         ("m", "p2"),
         ("p1", "c1"),
-        ("p1", "c2"),
         ("p2", "c1"),
+        ("p1", "c2"),
         ("p2", "c2"),
     ]
+    corpus_counts = {"c1": 1, "c2": 1}
+    ont = Ontology.build("v1", nodes, edges, corpus_counts=corpus_counts, lca_policy="max_depth")
 
-    # Policy: max_depth
-    # p1 and p2 have same depth (3).
-    ont_depth = Ontology.build("v1", nodes, edges, lca_policy="max_depth")
-    lca = ont_depth.get_lca("c1", "c2")
+    lca = ont.get_lca("c1", "c2")
     assert lca in ["p1", "p2"]
 
     # Policy: max_ic
-    # Give p1 more counts so it has lower IC? Wait, IC = -log(p). Higher count -> higher p -> lower IC.
+    # Give p1 more counts so it has lower IC?
+    # Wait, IC = -log(p). Higher count -> higher p -> lower IC.
     # To have higher IC, it should have LOWER count.
-    corpus_counts = {"c1": 1, "c2": 1}
     # p1 descendants: {p1, c1, c2}. count = 1+1 = 2
     # p2 descendants: {p2, c1, c2}. count = 1+1 = 2
     # If we add counts to p1 directly:
@@ -128,3 +131,4 @@ def test_ontology_metrics_discovery():
     metrics = ont.metrics()
     assert any(m["key"] == "lin" and m["type"] == "similarity" for m in metrics)
     assert any(m["key"] == "path" and m["type"] == "distance" for m in metrics)
+    assert any(m["key"] == "resnik_norm" and m["type"] == "similarity" for m in metrics)
