@@ -77,3 +77,33 @@ def test_psi_invalid_inputs():
 
     with pytest.raises(ValueError, match="PSI requires at least 2 different windows"):
         psi(data, col="age", window_col="window_id")
+
+
+def test_psi_with_baseline():
+    """Test PSI with explicit baseline parameter."""
+    data = pd.DataFrame(
+        {
+            "window_id": ["old", "new", "latest"],
+            "age": [25, 30, 35],
+        }
+    )
+
+    # Use explicit baseline
+    result = psi(data, col="age", window_col="window_id", baseline="old")
+
+    # Should compare "new" and "latest" against "old"
+    assert len(result) == 2
+    assert set(result["window_id"].tolist()) == {"new", "latest"}
+
+
+def test_psi_invalid_baseline():
+    """Test PSI with invalid baseline window."""
+    data = pd.DataFrame(
+        {
+            "window_id": ["baseline", "current"],
+            "age": [25, 30],
+        }
+    )
+
+    with pytest.raises(ValueError, match="Baseline window 'nonexistent' not found"):
+        psi(data, col="age", window_col="window_id", baseline="nonexistent")

@@ -25,6 +25,7 @@ class MonitorConfig:
     crit: Optional[float] = None
     semantics: Literal["abs", "delta"] = "abs"
     window_col: str = "window_id"
+    baseline: Optional[str] = None
 
 
 @dataclass
@@ -68,7 +69,7 @@ class WassersteinMonitorConfig(MonitorConfig):
 
     metric: Literal["wasserstein"] = "wasserstein"
     col: Optional[str] = None
-    weight_type: Literal["uniform", "ic"] = "uniform"
+    weight_type: Literal["uniform"] = "uniform"
     stratify: Optional[list[str]] = None
 
 
@@ -112,6 +113,7 @@ class Monitor:
             data=data,
             col=cfg.col,  # type: ignore[arg-type]
             window_col=cfg.window_col,
+            baseline=cfg.baseline,
             bins=cfg.bins,
             n_bins=cfg.n_bins,
             cutpoints=cfg.cutpoints,
@@ -128,6 +130,7 @@ class Monitor:
             x=cfg.x,  # type: ignore[arg-type]
             y=cfg.y,  # type: ignore[arg-type]
             window_col=cfg.window_col,
+            baseline=cfg.baseline,
             bias_correct=cfg.bias_correct,
             stratify=cfg.stratify,
         )
@@ -139,6 +142,7 @@ class Monitor:
             data=data,
             dist_cols=cfg.dist_cols,  # type: ignore[arg-type]
             window_col=cfg.window_col,
+            baseline=cfg.baseline,
             groupby=cfg.groupby,
             eps=cfg.eps,
             sqrt=cfg.sqrt,
@@ -151,6 +155,7 @@ class Monitor:
             data=data,
             col=cfg.col,  # type: ignore[arg-type]
             window_col=cfg.window_col,
+            baseline=cfg.baseline,
             weight_type=cfg.weight_type,
             stratify=cfg.stratify,
         )
@@ -162,6 +167,7 @@ class Monitor:
             data=data,
             emb_cols=cfg.emb_cols,  # type: ignore[arg-type]
             window_col=cfg.window_col,
+            baseline=cfg.baseline,
             kernel=cfg.kernel,
             sigma=cfg.sigma,
             n_perm=cfg.n_perm,

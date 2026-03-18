@@ -15,6 +15,7 @@ def jsd(  # noqa: C901
     window_col: str = "window_id",
     groupby: str | None = None,
     *,
+    baseline: str | None = None,
     eps: float = 1e-6,
     sqrt: bool = True,
 ) -> pd.DataFrame:
@@ -27,6 +28,7 @@ def jsd(  # noqa: C901
             (should sum to 1 per row)
         window_col: Column name indicating time window (default: "window_id")
         groupby: Column name to group by before calculating JSD (default: None)
+        baseline: Specific window to use as baseline. If None, uses first unique window.
         eps: Small value to avoid division by zero (default: 1e-6)
         sqrt: Whether to return square-rooted JSD (default: True)
 
@@ -61,9 +63,15 @@ def jsd(  # noqa: C901
     if len(windows) < 2:
         raise ValueError("JSD requires at least 2 different windows")
 
-    # Use first window as baseline, compare against all others
-    baseline_window = windows[0]
-    current_windows = windows[1:]
+    # Determine baseline window
+    if baseline is not None:
+        if baseline not in windows:
+            raise ValueError(f"Baseline window '{baseline}' not found in data")
+        baseline_window = baseline
+    else:
+        baseline_window = windows[0]
+
+    current_windows = [w for w in windows if w != baseline_window]
 
     results = []
 

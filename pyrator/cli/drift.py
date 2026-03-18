@@ -33,6 +33,7 @@ def load_config(config_dict: dict) -> MonitorConfig:
         "crit": config_dict.get("crit"),
         "semantics": config_dict.get("semantics", "abs"),
         "window_col": config_dict.get("window_col", "window_id"),
+        "baseline": config_dict.get("baseline"),
     }
 
     match metric:

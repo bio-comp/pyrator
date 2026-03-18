@@ -32,6 +32,7 @@ def mmd(  # noqa: C901
     emb_cols: list[str],
     window_col: str = "window_id",
     *,
+    baseline: str | None = None,
     kernel: Literal["rbf"] = "rbf",
     sigma: Literal["median_heuristic"] | float = "median_heuristic",
     n_perm: int = 1000,
@@ -45,6 +46,7 @@ def mmd(  # noqa: C901
         data: Input data frame with window_id column
         emb_cols: List of column names representing embedding dimensions
         window_col: Column name indicating time window (default: "window_id")
+        baseline: Specific window to use as baseline. If None, uses first unique window.
         kernel: Kernel type to use (default: "rbf")
         sigma: Kernel bandwidth ("median_heuristic" or float value) (default: "median_heuristic")
         n_perm: Number of permutations for permutation test (default: 1000)
@@ -74,9 +76,15 @@ def mmd(  # noqa: C901
     if len(windows) < 2:
         raise ValueError("MMD requires at least 2 different windows")
 
-    # Use first window as baseline, compare against all others
-    baseline_window = windows[0]
-    current_windows = windows[1:]
+    # Determine baseline window
+    if baseline is not None:
+        if baseline not in windows:
+            raise ValueError(f"Baseline window '{baseline}' not found in data")
+        baseline_window = baseline
+    else:
+        baseline_window = windows[0]
+
+    current_windows = [w for w in windows if w != baseline_window]
 
     # Set random seed for reproducibility
     if seed is not None:

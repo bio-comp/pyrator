@@ -16,7 +16,8 @@ def w1(  # noqa: C901
     col: str,
     window_col: str = "window_id",
     *,
-    weight_type: Literal["uniform", "ic"] = "uniform",
+    baseline: str | None = None,
+    weight_type: Literal["uniform"] = "uniform",
     stratify: list[str] | None = None,
 ) -> pd.DataFrame:
     """
@@ -27,7 +28,9 @@ def w1(  # noqa: C901
         data: Input data frame with window_id column
         col: Column name to calculate Wasserstein distance for (should be numeric/ordered)
         window_col: Column name indicating time window (default: "window_id")
-        weight_type: Type of weights to use ("uniform" or "ic") (default: "uniform")
+        baseline: Specific window to use as baseline. If None, uses first unique window.
+        weight_type: Type of weights to use (default: "uniform"). Note: "ic" weighting
+            was a placeholder and has been removed.
         stratify: List of column names to stratify by (default: None)
 
     Returns:
@@ -60,7 +63,15 @@ def w1(  # noqa: C901
     if len(windows) < 2:
         raise ValueError("Wasserstein distance requires at least 2 different windows")
 
-    # Use first window as baseline, compare against all others
+    # Determine baseline window
+    if baseline is not None:
+        if baseline not in windows:
+            raise ValueError(f"Baseline window '{baseline}' not found in data")
+        baseline_window = baseline
+    else:
+        baseline_window = windows[0]
+
+    current_windows = [w for w in windows if w != baseline_window]
     baseline_window = windows[0]
     current_windows = windows[1:]
 
