@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal, Optional
+
 import numpy as np
 
 from pyrator.types import FrameLike
@@ -80,12 +82,13 @@ def cohen_kappa(
     return float((po - pe) / denom)
 
 
-def fleiss_kappa(
+def fleiss_kappa(  # noqa: C901
     df: FrameLike,
     *,
     item_col: str,
     rater_col: str,
     label_col: str,
+    autodrop: Optional[Literal["incomplete_items", "rare_labels", "all"]] = None,
 ) -> float:
     """Compute Fleiss' kappa for many-rater nominal agreement.
 
@@ -94,12 +97,17 @@ def fleiss_kappa(
         item_col: Item/subject column.
         rater_col: Rater/annotator column.
         label_col: Nominal label column.
+        autodrop: Optional policy for handling incomplete data:
+            - None: Strict mode (default) - require complete rating matrix
+            - "incomplete_items": Drop items with fewer ratings than the maximum
+            - "rare_labels": Drop labels that appear in fewer than 2 items
+            - "all": Apply both policies
 
     Returns:
         Fleiss' kappa value.
 
     Raises:
-        ValueError: If input is malformed or items do not share a common rating count.
+        ValueError: If input is malformed or (in strict mode) items don't have equal ratings.
     """
     if hasattr(df, "to_pandas"):
         frame = df.to_pandas()
@@ -120,10 +128,31 @@ def fleiss_kappa(
         raise ValueError("Fleiss' kappa requires at least one rated item.")
 
     unique_counts = counts_by_item.unique()
+    max_ratings = int(unique_counts.max())
+
+    if len(unique_counts) != 1:
+        if autodrop is None:
+            raise ValueError(
+                "Fleiss' kappa strictly requires the same number of ratings per item. "
+                "For varying raters or missing data, use Krippendorff's Alpha instead, "
+                "or set autodrop to 'incomplete_items', 'rare_labels', or 'all'."
+            )
+        if autodrop in ("incomplete_items", "all"):
+            frame = frame[frame[item_col].isin(counts_by_item[counts_by_item == max_ratings].index)]
+
+    label_counts = frame.groupby(label_col)[item_col].nunique()
+    if autodrop in ("rare_labels", "all"):
+        frame = frame[frame[label_col].isin(label_counts[label_counts >= 2].index)]
+
+    if frame.empty:
+        raise ValueError("No items or labels remain after autodrop.")
+
+    counts_by_item = frame.groupby(item_col).size()
+    unique_counts = counts_by_item.unique()
     if len(unique_counts) != 1:
         raise ValueError(
-            "Fleiss' kappa strictly requires the same number of ratings per item. "
-            "For varying raters or missing data, use Krippendorff's Alpha instead."
+            "After dropping rare labels, remaining items have unequal ratings. "
+            "Consider using Krippendorff's Alpha instead."
         )
 
     ratings_per_item = int(unique_counts[0])
