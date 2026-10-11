@@ -137,15 +137,15 @@ class CategoryEncoder:
 
         if self.handle_unknown == "error":
             self._assert_no_unknown_values(
-                df[item_col].drop_duplicates().tolist(), self._maps["item"], column_name=item_col
+                list(df[item_col].unique()), self._maps["item"], column_name=item_col
             )
             self._assert_no_unknown_values(
-                df[annotator_col].drop_duplicates().tolist(),
+                list(df[annotator_col].unique()),
                 self._maps["annotator"],
                 column_name=annotator_col,
             )
             self._assert_no_unknown_values(
-                df[label_col].drop_duplicates().tolist(), self._maps["label"], column_name=label_col
+                list(df[label_col].unique()), self._maps["label"], column_name=label_col
             )
 
         def encode(col_name: str, m: dict[Any, int]) -> np.ndarray:

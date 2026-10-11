@@ -51,3 +51,19 @@ def test_wasserstein_invalid_inputs():
     ):
         data_single = pd.DataFrame({"window_id": ["baseline", "baseline"], "value": [1.0, 2.0]})
         w1(data_single, col="value", window_col="window_id")
+
+
+def test_wasserstein_custom_baseline():
+    """Test Wasserstein distance with explicit custom baseline selection."""
+    data = pd.DataFrame(
+        {
+            "window_id": ["w1", "w1", "w2", "w2", "w3", "w3"],
+            "value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        }
+    )
+
+    # With baseline='w2', comparisons should be against w2 (not w1)
+    result = w1(data, col="value", window_col="window_id", baseline="w2")
+    assert len(result) == 2
+    assert set(result["window_id"]) == {"w1", "w3"}
+

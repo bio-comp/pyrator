@@ -7,10 +7,13 @@ routing of backend implementations.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib.util import find_spec
-from typing import Dict, List, Optional, Set, Type
+from typing import Dict, List, Optional, Set, Type, TypeVar
 
 from pyrator.data.spi import DataBackend
+
+T = TypeVar("T", bound=DataBackend)
 
 
 class BackendRegistry:
@@ -23,7 +26,7 @@ class BackendRegistry:
     _instance_cache: Dict[str, DataBackend] = {}
 
     @classmethod
-    def register(cls, name: str, priority: Optional[int] = None):
+    def register(cls, name: str, priority: Optional[int] = None) -> Callable[[Type[T]], Type[T]]:
         """Decorator for registering backends.
 
         Args:
@@ -34,7 +37,7 @@ class BackendRegistry:
             Decorator function for backend registration
         """
 
-        def decorator(backend_cls: Type[DataBackend]):
+        def decorator(backend_cls: Type[T]) -> Type[T]:
             cls._backends[name] = backend_cls
             cls._availability_cache.pop(name, None)
             cls._instance_cache.pop(name, None)
@@ -205,12 +208,12 @@ class BackendRegistry:
         return list(cls._backends.keys())
 
     @classmethod
-    def register_capabilities(cls, name: str, capabilities: Set[str]):
+    def register_capabilities(cls, name: str, capabilities: Set[str]) -> None:
         """Register capabilities for a backend."""
         cls._capabilities[name] = set(capabilities)
 
     @classmethod
-    def clear(cls):
+    def clear(cls) -> None:
         """Clear all registered backends (for testing)."""
         cls._backends.clear()
         cls._priority.clear()

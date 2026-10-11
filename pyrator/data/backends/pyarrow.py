@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pyrator.data.backends.base import BaseBackend
 from pyrator.data.registry import BackendRegistry
@@ -21,7 +21,7 @@ class PyArrowBackend(BaseBackend):
 
     backend_module = "pyarrow.parquet"
 
-    def _create_backend(self):
+    def _create_backend(self) -> Any:
         import pyarrow.parquet as pq
 
         return pq
@@ -32,6 +32,14 @@ class PyArrowBackend(BaseBackend):
 
     def capabilities(self) -> set[str]:
         return {"parquet", "streaming"}
+
+    def _pyarrow_backend(self) -> Any:
+        backend = self._backend
+        if backend is None:
+            raise RuntimeError(
+                "pyarrow backend is unavailable; install pyarrow to use this backend."
+            )
+        return backend
 
     def load_csv(self, path: Path, sep: str = ",", **kwargs: Any) -> FrameLike:
         """CSV loading is intentionally not supported by the PyArrow backend."""
@@ -47,9 +55,10 @@ class PyArrowBackend(BaseBackend):
 
         logger.debug(f"Loading Parquet with PyArrow: {path.name}")
 
-        parquet_file = self._backend.ParquetFile(path)
+        backend = self._pyarrow_backend()
+        parquet_file = backend.ParquetFile(path)
         table = parquet_file.read_table()
-        return table.to_pandas()
+        return cast(FrameLike, table.to_pandas())
 
     def scan_csv(
         self, path: Path, chunk_size: int, sep: str = ",", **kwargs: Any
@@ -68,6 +77,7 @@ class PyArrowBackend(BaseBackend):
         logger.debug(f"Scanning Parquet with PyArrow: {path.name}")
 
         chunk_size_int = int(chunk_size)
-        parquet_file = self._backend.ParquetFile(path)
+        backend = self._pyarrow_backend()
+        parquet_file = backend.ParquetFile(path)
         for batch in parquet_file.iter_batches(batch_size=chunk_size_int):
-            yield batch.to_pandas()
+            yield cast(FrameLike, batch.to_pandas())

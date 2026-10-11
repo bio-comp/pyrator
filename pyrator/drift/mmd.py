@@ -120,7 +120,7 @@ def mmd(  # noqa: C901
                     window_id=current_window,
                     metric="mmd",
                     value=mmd_stat,
-                    stratum={k: v for k, v in stratum_row.items()},
+                    stratum={str(k): v for k, v in stratum_row.items()},
                     p_value=p_value,
                 )
                 results.append(result)

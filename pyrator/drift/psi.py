@@ -200,7 +200,7 @@ def psi(  # noqa: C901
                     window_id=current_window,
                     metric="psi",
                     value=psi_value,
-                    stratum={k: v for k, v in stratum_row.items()},
+                    stratum={str(k): v for k, v in stratum_row.items()},
                 )
                 results.append(result)
         else:

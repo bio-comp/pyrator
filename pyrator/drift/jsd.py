@@ -88,8 +88,12 @@ def jsd(  # noqa: C901
                 if len(baseline_data) == 0 or len(current_data) == 0:
                     continue
 
-                baseline_dist = baseline_data[dist_cols].mean().values
-                current_dist = current_data[dist_cols].mean().values
+                baseline_dist = np.asarray(
+                    baseline_data[dist_cols].mean().to_numpy(), dtype=np.float64
+                )
+                current_dist = np.asarray(
+                    current_data[dist_cols].mean().to_numpy(), dtype=np.float64
+                )
 
                 jsd_value = _calculate_jsd(baseline_dist, current_dist, eps)
                 if sqrt:
@@ -110,8 +114,8 @@ def jsd(  # noqa: C901
             if len(baseline_data) == 0 or len(current_data) == 0:
                 continue
 
-            baseline_dist = baseline_data[dist_cols].mean().values
-            current_dist = current_data[dist_cols].mean().values
+            baseline_dist = np.asarray(baseline_data[dist_cols].mean().to_numpy(), dtype=np.float64)
+            current_dist = np.asarray(current_data[dist_cols].mean().to_numpy(), dtype=np.float64)
 
             jsd_value = _calculate_jsd(baseline_dist, current_dist, eps)
             if sqrt:

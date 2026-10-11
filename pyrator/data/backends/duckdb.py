@@ -7,7 +7,7 @@ offering SQL-based data processing with direct API calls.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 from pyrator.data.backends.base import BaseBackend
 from pyrator.data.registry import BackendRegistry
@@ -20,7 +20,7 @@ class DuckDBBackend(BaseBackend):
 
     backend_module = "duckdb"
 
-    def _create_backend(self):
+    def _create_backend(self) -> Any:
         import duckdb
 
         return duckdb
@@ -94,7 +94,7 @@ class DuckDBBackend(BaseBackend):
             for record_batch in reader:
                 batch = record_batch.to_pandas()
                 if len(batch) > 0:
-                    yield batch
+                    yield cast(FrameLike, batch)
             return
 
         # Fallback for older APIs: one-pass materialization with local slicing.
@@ -102,7 +102,7 @@ class DuckDBBackend(BaseBackend):
         if len(batch) == 0:
             return
         for start in range(0, len(batch), chunk_size):
-            yield batch.iloc[start : start + chunk_size]
+            yield cast(FrameLike, batch.iloc[start : start + chunk_size])
 
     def load_csv(self, path: Path, sep: str = ",", **kwargs: Any) -> FrameLike:
         """Load CSV file using DuckDB."""
@@ -110,7 +110,7 @@ class DuckDBBackend(BaseBackend):
 
         logger.debug(f"Loading CSV with DuckDB: {path.name}")
         backend = self._duckdb_backend()
-        return backend.read_csv(path, sep=sep).df()
+        return cast(FrameLike, backend.read_csv(path, sep=sep).df())
 
     def load_jsonl(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load JSONL file using DuckDB.
@@ -126,7 +126,7 @@ class DuckDBBackend(BaseBackend):
         try:
             backend = self._duckdb_backend()
             # DuckDB can parse JSON lines with read_json_auto
-            return backend.read_json_auto(str(path)).df()
+            return cast(FrameLike, backend.read_json_auto(str(path)).df())
         except Exception as e:
             raise RuntimeError(f"DuckDB JSONL support failed: {e}")
 
@@ -137,7 +137,7 @@ class DuckDBBackend(BaseBackend):
         logger.debug(f"Loading Parquet with DuckDB: {path.name}")
         backend = self._duckdb_backend()
         # Use direct API call, note .pl() returns Polars DataFrame
-        return backend.read_parquet(path).pl()
+        return cast(FrameLike, backend.read_parquet(path).pl())
 
     def scan_csv(
         self, path: Path, chunk_size: int, sep: str = ",", **kwargs: Any
