@@ -231,6 +231,7 @@
   - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
   - `uv run ruff check pyrator/ tests/` -> All checks passed!
   - `uv run pytest` -> 323 passed in 3.92s (82% coverage).
+- Opened PR `#47`: https://github.com/bio-comp/pyrator/pull/47
 
 ## Next
 - Sprint 3: Create Agentic Skill / MCP calculation tools for deterministic reliability & consensus evaluation (for Antigravity, Claude Code, Codex).
