@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import typer
@@ -19,9 +19,10 @@ from pyrator.drift import (
 )
 
 app = typer.Typer(help="Drift monitoring commands.")
+drift_app = app
 
 
-def load_config(config_dict: dict) -> MonitorConfig:
+def load_config(config_dict: dict[str, Any]) -> MonitorConfig:
     """Load a MonitorConfig from a dictionary."""
     metric = config_dict.get("metric")
     if metric is None:
@@ -98,7 +99,7 @@ def run_drift(  # noqa: C901
         None, "--output", "-o", help="Path to output results file"
     ),
     format: str = typer.Option("json", "--format", "-f", help="Output format (json, csv)"),
-):
+) -> None:
     """
     Run drift monitoring analysis.
 
@@ -180,7 +181,7 @@ def explain_drift(
         ..., "--config", "-c", help="Path to drift monitoring configuration file"
     ),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Path to output explanation"),
-):
+) -> None:
     """
     Explain drift monitoring results for a specific monitor and window.
 
@@ -199,7 +200,7 @@ def drift_board(
     config: str = typer.Option(
         ..., "--config", "-c", help="Path to drift monitoring configuration file"
     ),
-):
+) -> None:
     """
     Launch a drift monitoring dashboard.
 

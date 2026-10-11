@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from pyrator.types import FrameLike
 
 
-class DataBackend:
+class DataBackend(Protocol):
     """Protocol that all data backends must implement."""
 
     @property

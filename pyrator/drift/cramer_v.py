@@ -100,7 +100,7 @@ def cramer_v(  # noqa: C901
                     metric="cramer_v",
                     value=current_v,
                     delta_from_baseline=delta_v,
-                    stratum={k: v for k, v in stratum_row.items()},
+                    stratum={str(k): v for k, v in stratum_row.items()},
                 )
                 results.append(result)
         else:

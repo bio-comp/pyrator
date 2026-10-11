@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import DataFrame
 
 from pyrator.api._results import AgreementResults

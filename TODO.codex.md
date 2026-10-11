@@ -200,7 +200,41 @@
   - #37: Replace numbers module with modern typing (tech debt)
   - #38: MonitorConfig violates ISP (design smell)
 
+- Resolved root cause of Typer decorator `# type: ignore` comments:
+  - Disproved "lacking PEP 612 ParamSpec in older environments" myth; root cause was missing `typer` in `pyproject.toml` dependencies combined with global `ignore_missing_imports = true`.
+  - Added `typer` and `pyyaml` (+ `types-pyyaml`) to `pyproject.toml`.
+  - Removed all `# type: ignore[untyped-decorator]` and `# type: ignore[import-untyped]` comments from `pyrator/cli/drift.py`.
+- Hardened and audited `pyproject.toml`:
+  - Added `[project.scripts]` entrypoint: `pyrator = "pyrator.cli:app"`.
+  - Removed phantom dependency `krippendorff` (unused third-party package; internal NumPy implementation exists).
+  - Moved premature `scikit-learn` into optional extra `clustering`.
+  - Removed legacy `pytest-cover` (redundant with `pytest-cov`).
+  - Aligned backend extras to modern `ibis-framework>=10.8.0` and direct `polars`.
+- Modernized `pandera` imports across API schemas and estimators (`import pandera.pandas as pa`), eliminating all deprecation warnings.
+- Mounted `drift_app` under top-level `app` in `pyrator/cli/__init__.py`; verified `pyrator --help` and `pyrator drift --help` CLI execution.
+- Verification passed:
+  - `uv run mypy pyrator/` -> Success: no issues found in 39 source files (0 strict errors, 0 decorator suppressions).
+  - `uv run ruff check pyrator/` -> All checks passed!
+  - `uv run pytest` -> 312 passed, 0 skipped, 0 failed in 2.75s (82% coverage).
+- Published fresh-perspective code review artifact: `pyrator_fresh_perspective_code_review.md`.
+
+- Integrated `narwhals.stable.v2` as the universal dataframe compatibility center:
+  - Replaced weak `FrameLike` with Narwhals stable v2 `IntoFrame` (natively supporting Pandas, Polars eager/lazy, PyArrow, DuckDB, Ibis).
+  - Built `pyrator/data/pipeline.py` with explicit `MaterializationBoundary` and native pre-aggregation (`compute_item_label_matrix`).
+  - Refactored `KrippendorffAlpha` in `pyrator/ira/krippendorff.py` to aggregate in native engines before materialization, eliminating `.to_pandas()` memory bloat.
+  - Added unit test verifying `KrippendorffAlpha` directly accepts Polars `LazyFrame` and PyArrow `Table` with identical numerical results.
+- Implemented Sprint 2: Multi-Tier Consensus Engine (`pyrator/consensus/`):
+  - `ConsensusResult` container with `.to_polars()`, `.to_pandas()`, `.to_arrow()`, `.to_dict()`.
+  - `TreeConsensusEstimator`: Closed-form LCA and distance-minimizing medoid consensus on DAG/tree ontologies.
+  - `DawidSkeneEstimator`: Closed-form initialization + EM algorithm with hierarchy-aware decay prior (`alpha_{k, l} = beta_0 * exp(-lambda * d(k, l))`).
+- Verification passed:
+  - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
+  - `uv run ruff check pyrator/ tests/` -> All checks passed!
+  - `uv run pytest` -> 323 passed in 3.92s (82% coverage).
+- Opened PR `#47`: https://github.com/bio-comp/pyrator/pull/47
+
 ## Next
-- Implement fixes for issues #34, #35 (high priority bugs)
-- Then address #36, #37 (medium priority)
-- Consider #38 for future refactoring
+- Sprint 3: Create Agentic Skill / MCP calculation tools for deterministic reliability & consensus evaluation (for Antigravity, Claude Code, Codex).
+- Modernize drift monitors and remaining IRA functions with Narwhals expressions.
+
+

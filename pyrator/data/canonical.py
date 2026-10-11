@@ -1,5 +1,4 @@
-# pyrator/data/canonical.py
-from typing import Literal
+from typing import Literal, cast
 
 from loguru import logger
 
@@ -34,18 +33,24 @@ def to_long_canonical(
 
             # Check if df is polars or pandas and use appropriate method
             if hasattr(df, "unpivot"):  # polars DataFrame
-                return df.unpivot(
-                    index=[item_col],
-                    on=wide_annotator_cols,
+                return cast(
+                    FrameLike,
+                    df.unpivot(
+                        index=[item_col],
+                        on=wide_annotator_cols,
+                        variable_name=annotator_col,
+                        value_name=label_col,
+                    ).drop_nulls(subset=[label_col]),
+                )
+            return cast(
+                FrameLike,
+                df.melt(
+                    id_vars=[item_col],
+                    value_vars=wide_annotator_cols,
                     variable_name=annotator_col,
                     value_name=label_col,
-                ).drop_nulls(subset=[label_col])
-            return df.melt(
-                id_vars=[item_col],
-                value_vars=wide_annotator_cols,
-                variable_name=annotator_col,
-                value_name=label_col,
-            ).drop_nulls(subset=[label_col])
+                ).drop_nulls(subset=[label_col]),
+            )
 
         # Validate columns for long format (when wide_annotator_cols is None)
         required = [item_col, annotator_col, label_col]
@@ -53,7 +58,7 @@ def to_long_canonical(
         if missing:
             raise ValueError(f"Missing columns: {missing}")
 
-        return df.select(required)
+        return cast(FrameLike, df.select(required))
 
     # Pandas path
     df = to_pandas(df_like)
@@ -63,19 +68,22 @@ def to_long_canonical(
         if missing:
             raise ValueError(f"Missing annotator columns: {missing}")
 
-        return df.melt(
-            id_vars=[item_col],
-            value_vars=wide_annotator_cols,
-            var_name=annotator_col,
-            value_name=label_col,
-        ).dropna(subset=[label_col])[[item_col, annotator_col, label_col]]
+        return cast(
+            FrameLike,
+            df.melt(
+                id_vars=[item_col],
+                value_vars=wide_annotator_cols,
+                var_name=annotator_col,
+                value_name=label_col,
+            ).dropna(subset=[label_col])[[item_col, annotator_col, label_col]],
+        )
 
     required = [item_col, annotator_col, label_col]
     missing = set(required) - set(df.columns)
     if missing:
         raise ValueError(f"Missing columns: {missing}")
 
-    return df[required].copy()  # Return copy, not view
+    return cast(FrameLike, df[required].copy())  # Return copy, not view
 
 
 def explode_multilabel(  # noqa: C901
@@ -100,24 +108,30 @@ def explode_multilabel(  # noqa: C901
         # Handle list types
         if mode in ("auto", "list") and isinstance(col_type, pl.List):
             logger.debug(f"Exploding {label_col} as list type")
-            return df.explode(label_col)
+            return cast(FrameLike, df.explode(label_col))
 
         # Handle delimited strings
         if mode in ("auto", "delim"):
             logger.debug(f"Exploding {label_col} with delimiter '{delim}'")
-            return df.with_columns(pl.col(label_col).cast(pl.Utf8).str.split(delim)).explode(
-                label_col
+            return cast(
+                FrameLike,
+                df.with_columns(pl.col(label_col).cast(pl.Utf8).str.split(delim)).explode(
+                    label_col
+                ),
             )
 
         # Handle JSON arrays
         if mode == "json":
             logger.debug(f"Exploding {label_col} as JSON")
             # Use native JSON extraction if possible
-            return df.with_columns(
-                pl.col(label_col).str.json_decode(dtype=pl.List(pl.Utf8))
-            ).explode(label_col)
+            return cast(
+                FrameLike,
+                df.with_columns(pl.col(label_col).str.json_decode(dtype=pl.List(pl.Utf8))).explode(
+                    label_col
+                ),
+            )
 
-        return df
+        return cast(FrameLike, df)
 
     # Pandas path
     df = to_pandas(df_like).copy()
@@ -130,13 +144,13 @@ def explode_multilabel(  # noqa: C901
         sample = df[label_col].dropna().iloc[0] if not df[label_col].dropna().empty else None
         if isinstance(sample, list):
             logger.debug(f"Exploding {label_col} as list type")
-            return df.explode(label_col).dropna(subset=[label_col])
+            return cast(FrameLike, df.explode(label_col).dropna(subset=[label_col]))
 
     # Handle delimited strings
     if mode in ("auto", "delim") and df[label_col].dtype == "object":
         logger.debug(f"Exploding {label_col} with delimiter '{delim}'")
         df[label_col] = df[label_col].astype(str).str.split(delim)
-        return df.explode(label_col).dropna(subset=[label_col])
+        return cast(FrameLike, df.explode(label_col).dropna(subset=[label_col]))
 
     # Handle JSON arrays
     if mode == "json":
@@ -144,6 +158,6 @@ def explode_multilabel(  # noqa: C901
 
         logger.debug(f"Exploding {label_col} as JSON")
         df[label_col] = df[label_col].apply(orjson.loads)
-        return df.explode(label_col).dropna(subset=[label_col])
+        return cast(FrameLike, df.explode(label_col).dropna(subset=[label_col]))
 
-    return df
+    return cast(FrameLike, df)

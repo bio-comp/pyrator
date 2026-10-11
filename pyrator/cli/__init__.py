@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-# Import CLI commands to make them available
+import typer
+
 from pyrator.cli.drift import drift_app
 
-__all__ = ["drift_app"]
+app = typer.Typer(help="pyrator: Interrater reliability, agreement, and drift monitoring.")
+app.add_typer(drift_app, name="drift")
+
+__all__ = ["app", "drift_app"]

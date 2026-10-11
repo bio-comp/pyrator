@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pyrator.data.backends.base import BaseBackend
 from pyrator.data.registry import BackendRegistry
@@ -49,17 +49,17 @@ class PandasBackend(BaseBackend):
 
         logger.debug(f"Loading CSV with Pandas: {path.name}")
         backend = self._pandas_backend()
-        return backend.read_csv(path, sep=sep)
+        return cast(FrameLike, backend.read_csv(path, sep=sep))
 
     def load_jsonl(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load JSONL file using Pandas."""
         backend = self._pandas_backend()
-        return backend.read_json(str(path), lines=True)
+        return cast(FrameLike, backend.read_json(str(path), lines=True))
 
     def load_parquet(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load Parquet file using Pandas."""
         backend = self._pandas_backend()
-        return backend.read_parquet(path)
+        return cast(FrameLike, backend.read_parquet(path))
 
     def scan_csv(
         self, path: Path, chunk_size: int, sep: str = ",", **kwargs: Any

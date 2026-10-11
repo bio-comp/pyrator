@@ -7,7 +7,7 @@ offering high-performance data loading and streaming capabilities.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterator, Set
+from typing import Any, Iterator, Set, cast
 
 from pyrator.data.backends.base import BaseBackend
 from pyrator.data.registry import BackendRegistry
@@ -20,7 +20,7 @@ class PolarsBackend(BaseBackend):
 
     backend_module = "polars"
 
-    def _create_backend(self):
+    def _create_backend(self) -> Any:
         import polars
 
         return polars
@@ -32,20 +32,29 @@ class PolarsBackend(BaseBackend):
     def capabilities(self) -> Set[str]:
         return {"csv", "jsonl", "parquet", "streaming"}
 
+    def _polars_backend(self) -> Any:
+        backend = self._backend
+        if backend is None:
+            raise RuntimeError("polars backend is unavailable; install polars to use this backend.")
+        return backend
+
     def load_csv(self, path: Path, sep: str = ",", **kwargs: Any) -> FrameLike:
         """Load CSV file using Polars."""
         from loguru import logger
 
         logger.debug(f"Loading CSV with Polars: {path.name}")
-        return self._backend.read_csv(path, separator=sep)
+        backend = self._polars_backend()
+        return cast(FrameLike, backend.read_csv(path, separator=sep))
 
     def load_jsonl(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load JSONL file using Polars."""
-        return self._backend.read_ndjson(path)
+        backend = self._polars_backend()
+        return cast(FrameLike, backend.read_ndjson(path))
 
     def load_parquet(self, path: Path, **kwargs: Any) -> FrameLike:
         """Load Parquet file using Polars."""
-        return self._backend.read_parquet(path)
+        backend = self._polars_backend()
+        return cast(FrameLike, backend.read_parquet(path))
 
     def scan_csv(
         self, path: Path, chunk_size: int, sep: str = ",", **kwargs: Any
@@ -56,13 +65,14 @@ class PolarsBackend(BaseBackend):
         logger.debug(f"Scanning CSV with Polars: {path.name}")
 
         chunk_size_int = int(chunk_size)
-        lf = self._backend.scan_csv(path, separator=sep)
+        backend = self._polars_backend()
+        lf = backend.scan_csv(path, separator=sep)
         offset = 0
         while True:
             batch = lf.slice(offset, chunk_size_int).collect(engine="streaming")
             if not len(batch):
                 break
-            yield batch
+            yield cast(FrameLike, batch)
             offset += chunk_size_int
 
     def scan_jsonl(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
@@ -72,13 +82,14 @@ class PolarsBackend(BaseBackend):
         logger.debug(f"Scanning JSONL with Polars: {path.name}")
 
         chunk_size_int = int(chunk_size)
-        lf = self._backend.scan_ndjson(path)
+        backend = self._polars_backend()
+        lf = backend.scan_ndjson(path)
         offset = 0
         while True:
             batch = lf.slice(offset, chunk_size_int).collect(engine="streaming")
             if not len(batch):
                 break
-            yield batch
+            yield cast(FrameLike, batch)
             offset += chunk_size_int
 
     def scan_parquet(self, path: Path, chunk_size: int, **kwargs: Any) -> Iterator[FrameLike]:
@@ -88,11 +99,12 @@ class PolarsBackend(BaseBackend):
         logger.debug(f"Scanning Parquet with Polars: {path.name}")
 
         chunk_size_int = int(chunk_size)
-        lf = self._backend.scan_parquet(str(path))
+        backend = self._polars_backend()
+        lf = backend.scan_parquet(str(path))
         offset = 0
         while True:
             batch = lf.slice(offset, chunk_size_int).collect(engine="streaming")
             if not len(batch):
                 break
-            yield batch
+            yield cast(FrameLike, batch)
             offset += chunk_size_int

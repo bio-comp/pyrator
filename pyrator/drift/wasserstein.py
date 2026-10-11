@@ -72,8 +72,6 @@ def w1(  # noqa: C901
         baseline_window = windows[0]
 
     current_windows = [w for w in windows if w != baseline_window]
-    baseline_window = windows[0]
-    current_windows = windows[1:]
 
     results = []
 
@@ -101,7 +99,7 @@ def w1(  # noqa: C901
                     window_id=current_window,
                     metric="wasserstein",
                     value=distance,
-                    stratum={k: v for k, v in stratum_row.items()},
+                    stratum={str(k): v for k, v in stratum_row.items()},
                 )
                 results.append(result)
         else:
