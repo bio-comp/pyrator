@@ -232,9 +232,27 @@
   - `uv run ruff check pyrator/ tests/` -> All checks passed!
   - `uv run pytest` -> 323 passed in 3.92s (82% coverage).
 - Opened PR `#47`: https://github.com/bio-comp/pyrator/pull/47
+- PR `#47` merged by user and remote branch deleted.
+- Local cleanup completed for `#47`:
+  - checked out `main`
+  - pulled latest `origin/main` (fast-forward including #47)
+  - deleted local branch `fix/mypy-strict-backlog`
+- Opened Issue `#48`: Audit and ensure native/lazy execution for DuckDB and all supported backends.
+- Created and switched to branch `issue/48-lazy-backend-audit`.
+- Implemented Issue `#48` (Audit and ensure native/lazy execution for DuckDB and all supported backends):
+  - Fixed `normalize_to_narwhals`: removed premature `data.arrow()` call that eagerly executed DuckDB relations and caused `RecordBatchReader` crashes; DuckDB relations now pass directly into `nw.from_native(data)` and stay lazy `DuckDBPyRelation` expressions.
+  - Refactored `detect_backend_affinity`: explicitly detects `"duckdb"`, `"ibis"`, `"polars"`, `"pandas"`, `"arrow"`, `"dict"`; returns `"unknown"` or explicit `default` parameter rather than silently masking backends as `"polars"`.
+  - Added `to_duckdb()`, `to_ibis()`, and `to_native()` to `ConsensusResult` so results can be exported back in the caller's originating format.
+  - Applied column projection pushdown in `MaterializationBoundary.extract_canonical_annotations`, `extract_1d_array`, and `TreeConsensusEstimator` before materialization boundary.
+  - Added multi-backend tests across Polars LazyFrame, DuckDB relation, PyArrow table, Ibis table, and Pandas DataFrame for Krippendorff alpha, Tree consensus, and Dawid-Skene.
+- Verification passed:
+  - `uv run pytest` -> 331 passed in 3.03s (83% coverage).
+  - `uv run ruff check pyrator/ tests/` -> All checks passed!
+  - `uv run ruff format --check pyrator/ tests/` -> All checks passed!
+  - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
 
 ## Next
-- Sprint 3: Create Agentic Skill / MCP calculation tools for deterministic reliability & consensus evaluation (for Antigravity, Claude Code, Codex).
-- Modernize drift monitors and remaining IRA functions with Narwhals expressions.
+- Prompt user for commit and push of branch `issue/48-lazy-backend-audit` and PR #48 creation.
+- Next sprint items: AI Coding Agent Skills / MCP Calculation Server, Narwhals modernization for drift metrics, and Bayesian / causal inference.
 
 

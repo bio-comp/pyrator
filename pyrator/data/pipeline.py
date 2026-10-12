@@ -8,17 +8,30 @@ explicit Materialization Boundary, where arrays are extracted into NumPy/SciPy c
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import narwhals.stable.v2 as nw
 import numpy as np
 
+from pyrator.types import BackendAffinity
 
-def detect_backend_affinity(data: Any) -> Literal["polars", "pandas", "arrow", "dict"]:
-    """Detect the originating dataframe backend to preserve caller affinity."""
+
+def detect_backend_affinity(
+    data: Any,
+    default: BackendAffinity | None = None,
+) -> BackendAffinity:
+    """Detect the originating dataframe backend to preserve caller affinity.
+
+    Recognizes native Polars, Pandas, PyArrow, DuckDB, Ibis, and Python dict containers.
+    If the originating backend cannot be detected (e.g. file paths, unknown objects),
+    returns `default` if provided, or 'unknown'.
+    """
     raw = data
     if isinstance(data, (nw.DataFrame, nw.LazyFrame)):
         raw = nw.to_native(data)
+
+    if isinstance(raw, dict):
+        return "dict"
 
     mod_name = type(raw).__module__
     if "polars" in mod_name:
@@ -27,17 +40,20 @@ def detect_backend_affinity(data: Any) -> Literal["polars", "pandas", "arrow", "
         return "pandas"
     if "pyarrow" in mod_name:
         return "arrow"
-    return "polars"
+    if "duckdb" in mod_name:
+        return "duckdb"
+    if "ibis" in mod_name:
+        return "ibis"
+
+    if default is not None:
+        return default
+    return "unknown"
 
 
 def normalize_to_narwhals(data: Any) -> nw.DataFrame[Any] | nw.LazyFrame[Any]:
     """Normalize input to a Narwhals DataFrame or LazyFrame without unnecessary copies."""
     if isinstance(data, (nw.DataFrame, nw.LazyFrame)):
         return data
-
-    # DuckDB PyRelation handling: export zero-copy to arrow
-    if hasattr(data, "arrow") and callable(data.arrow):
-        data = data.arrow()
 
     # File path handling
     if isinstance(data, (str, Path)):
@@ -98,8 +114,9 @@ class MaterializationBoundary:
         col: str,
         dtype: Any = None,
     ) -> np.ndarray:
-        """Extract a single column as a 1D NumPy array."""
-        eager_df = cls.to_eager(df)
+        """Extract a single column as a 1D NumPy array with projection pushdown."""
+        projected = df.select([col])
+        eager_df = cls.to_eager(projected)
         arr = eager_df[col].to_numpy()
         if dtype is not None:
             return arr.astype(dtype)
@@ -115,11 +132,15 @@ class MaterializationBoundary:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, dict[str, Any]]]:
         """Extract and encode canonical (item, rater, label) annotations to int32 arrays.
 
+        Applies column projection pushdown and null filtering in the native engine
+        prior to materializing arrays into NumPy.
+
         Returns:
             Tuple of (items_idx, raters_idx, labels_idx, id_maps)
             where id_maps contains {"to_int": ..., "to_str": ...} for each entity.
         """
-        eager_df = cls.to_eager(df)
+        projected = df.select([item_col, rater_col, label_col]).drop_nulls()
+        eager_df = cls.to_eager(projected)
 
         raw_items = eager_df[item_col].to_numpy().astype(str)
         raw_raters = eager_df[rater_col].to_numpy().astype(str)
@@ -176,4 +197,3 @@ def compute_item_label_matrix(
     matrix[item_inv, label_inv] = raw_counts
 
     return matrix, list(unique_items), list(unique_labels)
-

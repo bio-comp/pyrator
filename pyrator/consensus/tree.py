@@ -41,9 +41,10 @@ class TreeConsensusEstimator:
         label_col: str = "label_id",
     ) -> ConsensusResult:
         """Compute consensus labels for items in the dataset."""
-        affinity = detect_backend_affinity(data)
+        affinity = detect_backend_affinity(data, default="polars")
         nw_df = normalize_to_narwhals(data)
-        eager_df = MaterializationBoundary.to_eager(nw_df)
+        projected = nw_df.select([item_col, label_col]).drop_nulls()
+        eager_df = MaterializationBoundary.to_eager(projected)
 
         raw_items = eager_df[item_col].to_numpy().astype(str)
         raw_labels = eager_df[label_col].to_numpy().astype(str)
@@ -135,13 +136,9 @@ class TreeConsensusEstimator:
         best_cost = float("inf")
 
         for cand in unique_labels:
-            cost = sum(
-                self.ontology.get_distance(cand, lbl, metric=self.metric) for lbl in labels
-            )
+            cost = sum(self.ontology.get_distance(cand, lbl, metric=self.metric) for lbl in labels)
             # Tie-break: highest frequency, then lowest lexical
-            if cost < best_cost or (
-                cost == best_cost and counts[cand] > counts[best_candidate]
-            ):
+            if cost < best_cost or (cost == best_cost and counts[cand] > counts[best_candidate]):
                 best_cost = cost
                 best_candidate = cand
 

@@ -125,3 +125,92 @@ def test_compute_item_label_matrix_pandas_and_polars_lazy() -> None:
     assert labels_pl == ["A", "B"]
     np.testing.assert_array_equal(mat_pl, [[2.0, 1.0], [0.0, 2.0]])
 
+
+def test_normalize_duckdb_relation_stays_lazy() -> None:
+    duckdb = pytest.importorskip("duckdb")
+    import narwhals.stable.v2 as nw
+
+    from pyrator.data.pipeline import compute_item_label_matrix
+
+    rel = duckdb.sql(
+        "SELECT 'i1' as item_id, 'r1' as annotator_id, 'A' as label_id "
+        "UNION ALL SELECT 'i1', 'r2', 'A' "
+        "UNION ALL SELECT 'i1', 'r3', 'B' "
+        "UNION ALL SELECT 'i2', 'r1', 'B' "
+        "UNION ALL SELECT 'i2', 'r2', 'B'"
+    )
+
+    # 1. Detection must explicitly report duckdb
+    assert detect_backend_affinity(rel) == "duckdb"
+
+    # 2. normalize_to_narwhals must return nw.LazyFrame backed by native DuckDB relation
+    nw_df = normalize_to_narwhals(rel)
+    assert isinstance(nw_df, nw.LazyFrame)
+    native = nw.to_native(nw_df)
+    assert "DuckDBPyRelation" in type(native).__name__
+
+    # 3. compute_item_label_matrix executes aggregate in engine
+    # without premature full materialization
+    mat, items, labels = compute_item_label_matrix(rel, item_col="item_id", label_col="label_id")
+    assert items == ["i1", "i2"]
+    assert labels == ["A", "B"]
+    np.testing.assert_array_equal(mat, [[2.0, 1.0], [0.0, 2.0]])
+
+
+def test_normalize_ibis_table_stays_lazy() -> None:
+    ibis = pytest.importorskip("ibis")
+    import narwhals.stable.v2 as nw
+
+    from pyrator.data.pipeline import compute_item_label_matrix
+
+    t = ibis.memtable(
+        {
+            "item_id": ["i1", "i1", "i1", "i2", "i2"],
+            "annotator_id": ["r1", "r2", "r3", "r1", "r2"],
+            "label_id": ["A", "A", "B", "B", "B"],
+        }
+    )
+
+    # 1. Detection must explicitly report ibis
+    assert detect_backend_affinity(t) == "ibis"
+
+    # 2. normalize_to_narwhals must return nw.LazyFrame backed by Ibis Table
+    nw_df = normalize_to_narwhals(t)
+    assert isinstance(nw_df, nw.LazyFrame)
+    native = nw.to_native(nw_df)
+    assert "Table" in type(native).__name__
+
+    # 3. compute_item_label_matrix executes aggregate
+    mat, items, labels = compute_item_label_matrix(t, item_col="item_id", label_col="label_id")
+    assert items == ["i1", "i2"]
+    assert labels == ["A", "B"]
+    np.testing.assert_array_equal(mat, [[2.0, 1.0], [0.0, 2.0]])
+
+
+def test_detect_backend_affinity_explicit_all_backends() -> None:
+    df_pd = pd.DataFrame({"x": [1]})
+    assert detect_backend_affinity(df_pd) == "pandas"
+    assert detect_backend_affinity({"x": [1]}) == "dict"
+    assert detect_backend_affinity("some_file.parquet") == "unknown"
+    assert detect_backend_affinity("some_file.csv", default="polars") == "polars"
+
+
+def test_extract_canonical_annotations_projects_columns_lazily() -> None:
+    pl = pytest.importorskip("polars")
+    # Extra column that would be wasteful to materialize
+    df_lazy = pl.DataFrame(
+        {
+            "item_id": ["i1", "i2"],
+            "annotator_id": ["r1", "r1"],
+            "label_id": ["A", "B"],
+            "huge_unneeded_data": ["long_text_blob_1", "long_text_blob_2"],
+        }
+    ).lazy()
+
+    nw_df = normalize_to_narwhals(df_lazy)
+    items, raters, labels, id_maps = MaterializationBoundary.extract_canonical_annotations(
+        nw_df, item_col="item_id", rater_col="annotator_id", label_col="label_id"
+    )
+    assert len(items) == 2
+    assert len(raters) == 2
+    assert len(labels) == 2

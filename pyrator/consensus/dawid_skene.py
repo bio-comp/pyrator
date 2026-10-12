@@ -51,7 +51,7 @@ class DawidSkeneEstimator:
         label_col: str = "label_id",
     ) -> ConsensusResult:
         """Fit Dawid-Skene model via EM and return structured consensus results."""
-        affinity = detect_backend_affinity(data)
+        affinity = detect_backend_affinity(data, default="polars")
         nw_df = normalize_to_narwhals(data)
 
         # Extract at Materialization Boundary

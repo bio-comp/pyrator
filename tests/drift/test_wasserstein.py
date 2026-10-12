@@ -66,4 +66,3 @@ def test_wasserstein_custom_baseline():
     result = w1(data, col="value", window_col="window_id", baseline="w2")
     assert len(result) == 2
     assert set(result["window_id"]) == {"w1", "w3"}
-

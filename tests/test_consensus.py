@@ -178,3 +178,65 @@ def test_dawid_skene_polars_native_input(clinical_ontology: Ontology) -> None:
     df_out = res.to_polars()
     assert isinstance(df_out, pl.DataFrame)
     assert df_out["consensus_label"].to_list() == ["CAD", "Stroke"]
+    assert isinstance(res.to_native(), pl.DataFrame)
+
+
+def test_dawid_skene_duckdb_native_input(clinical_ontology: Ontology) -> None:
+    duckdb = pytest.importorskip("duckdb")
+
+    rel = duckdb.sql(
+        "SELECT 'i1' as item_id, 'r1' as annotator_id, 'CAD' as label_id "
+        "UNION ALL SELECT 'i1', 'r2', 'CAD' "
+        "UNION ALL SELECT 'i2', 'r1', 'Stroke' "
+        "UNION ALL SELECT 'i2', 'r2', 'Stroke'"
+    )
+
+    ds = DawidSkeneEstimator(ontology=clinical_ontology)
+    res = ds.fit(rel)
+
+    assert res.backend_affinity == "duckdb"
+    duck_out = res.to_duckdb()
+    assert "DuckDBPyRelation" in type(duck_out).__name__
+    native_out = res.to_native()
+    assert "DuckDBPyRelation" in type(native_out).__name__
+    assert duck_out.df()["consensus_label"].tolist() == ["CAD", "Stroke"]
+
+
+def test_tree_consensus_duckdb_native_input(clinical_ontology: Ontology) -> None:
+    duckdb = pytest.importorskip("duckdb")
+
+    rel = duckdb.sql(
+        "SELECT 'i1' as item_id, 'r1' as annotator_id, 'CAD' as label_id "
+        "UNION ALL SELECT 'i1', 'r2', 'Arrh' "
+        "UNION ALL SELECT 'i2', 'r1', 'Stroke' "
+        "UNION ALL SELECT 'i2', 'r2', 'Migraine'"
+    )
+
+    estimator = TreeConsensusEstimator(ontology=clinical_ontology, strategy="lca")
+    res = estimator.fit_predict(rel)
+
+    assert res.backend_affinity == "duckdb"
+    assert "DuckDBPyRelation" in type(res.to_native()).__name__
+    preds = dict(zip(res.item_ids, res.consensus_labels))
+    assert preds["i1"] == "Cardio"
+    assert preds["i2"] == "Neuro"
+
+
+def test_dawid_skene_ibis_native_input(clinical_ontology: Ontology) -> None:
+    ibis = pytest.importorskip("ibis")
+
+    t = ibis.memtable(
+        {
+            "item_id": ["i1", "i1", "i2", "i2"],
+            "annotator_id": ["r1", "r2", "r1", "r2"],
+            "label_id": ["CAD", "CAD", "Stroke", "Stroke"],
+        }
+    )
+
+    ds = DawidSkeneEstimator(ontology=clinical_ontology)
+    res = ds.fit(t)
+
+    assert res.backend_affinity == "ibis"
+    ibis_out = res.to_ibis()
+    assert "Table" in type(ibis_out).__name__
+    assert "Table" in type(res.to_native()).__name__
