@@ -251,8 +251,11 @@
   - `uv run ruff format --check pyrator/ tests/` -> All checks passed!
   - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
 
+- Opened PR `#49`: https://github.com/bio-comp/pyrator/pull/49
+
 ## Next
-- Prompt user for commit and push of branch `issue/48-lazy-backend-audit` and PR #48 creation.
-- Next sprint items: AI Coding Agent Skills / MCP Calculation Server, Narwhals modernization for drift metrics, and Bayesian / causal inference.
+- Await user review and merge of PR #49.
+- Local cleanup upon merge (checkout main, pull origin/main, delete branch issue/48-lazy-backend-audit).
+- Next items: AI Coding Agent Skills / MCP Calculation Server, Narwhals modernization for drift metrics, and Bayesian / causal inference.
 
 
