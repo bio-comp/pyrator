@@ -94,3 +94,28 @@ def test_krippendorff_polars_lazy_and_arrow(krippendorff_data: pd.DataFrame) -> 
     alpha_pa = ka_pa.calculate(metric="nominal")
     assert np.isclose(alpha_pa, alpha_pd)
 
+
+def test_krippendorff_duckdb_and_ibis(krippendorff_data: pd.DataFrame) -> None:
+    """Verify KrippendorffAlpha directly accepts native DuckDB relation and Ibis table."""
+    import pytest
+
+    duckdb = pytest.importorskip("duckdb")
+    ibis = pytest.importorskip("ibis")
+
+    # Baseline with pandas
+    ka_pd = KrippendorffAlpha(
+        krippendorff_data, item_col="item", rater_col="rater", label_col="label"
+    )
+    alpha_pd = ka_pd.calculate(metric="nominal")
+
+    # Native DuckDB relation
+    duck_rel = duckdb.from_df(krippendorff_data)
+    ka_duck = KrippendorffAlpha(duck_rel, item_col="item", rater_col="rater", label_col="label")
+    alpha_duck = ka_duck.calculate(metric="nominal")
+    assert np.isclose(alpha_duck, alpha_pd)
+
+    # Native Ibis table
+    ibis_tbl = ibis.memtable(krippendorff_data)
+    ka_ibis = KrippendorffAlpha(ibis_tbl, item_col="item", rater_col="rater", label_col="label")
+    alpha_ibis = ka_ibis.calculate(metric="nominal")
+    assert np.isclose(alpha_ibis, alpha_pd)

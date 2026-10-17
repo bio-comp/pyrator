@@ -9,8 +9,8 @@ import numpy as np
 from pyrator.consensus.result import ConsensusResult
 from pyrator.data.pipeline import (
     MaterializationBoundary,
-    detect_backend_affinity,
     normalize_to_narwhals,
+    resolve_affinity,
 )
 from pyrator.ontology.core import Ontology
 
@@ -51,8 +51,8 @@ class DawidSkeneEstimator:
         label_col: str = "label_id",
     ) -> ConsensusResult:
         """Fit Dawid-Skene model via EM and return structured consensus results."""
-        affinity = detect_backend_affinity(data)
         nw_df = normalize_to_narwhals(data)
+        affinity = resolve_affinity(data, nw_df, default="polars")
 
         # Extract at Materialization Boundary
         items_idx, raters_idx, labels_idx, id_maps = (

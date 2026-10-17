@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -178,3 +180,140 @@ def test_dawid_skene_polars_native_input(clinical_ontology: Ontology) -> None:
     df_out = res.to_polars()
     assert isinstance(df_out, pl.DataFrame)
     assert df_out["consensus_label"].to_list() == ["CAD", "Stroke"]
+    assert isinstance(res.to_native(), pl.DataFrame)
+
+
+def test_dawid_skene_duckdb_native_input(clinical_ontology: Ontology) -> None:
+    duckdb = pytest.importorskip("duckdb")
+
+    rel = duckdb.sql(
+        "SELECT 'i1' as item_id, 'r1' as annotator_id, 'CAD' as label_id "
+        "UNION ALL SELECT 'i1', 'r2', 'CAD' "
+        "UNION ALL SELECT 'i2', 'r1', 'Stroke' "
+        "UNION ALL SELECT 'i2', 'r2', 'Stroke'"
+    )
+
+    ds = DawidSkeneEstimator(ontology=clinical_ontology)
+    res = ds.fit(rel)
+
+    assert res.backend_affinity == "duckdb"
+    duck_out = res.to_duckdb()
+    assert "DuckDBPyRelation" in type(duck_out).__name__
+    native_out = res.to_native()
+    assert "DuckDBPyRelation" in type(native_out).__name__
+    assert duck_out.df()["consensus_label"].tolist() == ["CAD", "Stroke"]
+
+
+def test_tree_consensus_duckdb_native_input(clinical_ontology: Ontology) -> None:
+    duckdb = pytest.importorskip("duckdb")
+
+    rel = duckdb.sql(
+        "SELECT 'i1' as item_id, 'r1' as annotator_id, 'CAD' as label_id "
+        "UNION ALL SELECT 'i1', 'r2', 'Arrh' "
+        "UNION ALL SELECT 'i2', 'r1', 'Stroke' "
+        "UNION ALL SELECT 'i2', 'r2', 'Migraine'"
+    )
+
+    estimator = TreeConsensusEstimator(ontology=clinical_ontology, strategy="lca")
+    res = estimator.fit_predict(rel)
+
+    assert res.backend_affinity == "duckdb"
+    assert "DuckDBPyRelation" in type(res.to_native()).__name__
+    preds = dict(zip(res.item_ids, res.consensus_labels))
+    assert preds["i1"] == "Cardio"
+    assert preds["i2"] == "Neuro"
+
+
+def test_dawid_skene_ibis_native_input(clinical_ontology: Ontology) -> None:
+    ibis = pytest.importorskip("ibis")
+
+    t = ibis.memtable(
+        {
+            "item_id": ["i1", "i1", "i2", "i2"],
+            "annotator_id": ["r1", "r2", "r1", "r2"],
+            "label_id": ["CAD", "CAD", "Stroke", "Stroke"],
+        }
+    )
+
+    ds = DawidSkeneEstimator(ontology=clinical_ontology)
+    res = ds.fit(t)
+
+    assert res.backend_affinity == "ibis"
+    ibis_out = res.to_ibis()
+    assert "Table" in type(ibis_out).__name__
+    assert "Table" in type(res.to_native()).__name__
+
+
+def test_tree_consensus_ibis_native_input(clinical_ontology: Ontology) -> None:
+    ibis = pytest.importorskip("ibis")
+
+    t = ibis.memtable(
+        {
+            "item_id": ["i1", "i1", "i2", "i2"],
+            "annotator_id": ["r1", "r2", "r1", "r2"],
+            "label_id": ["CAD", "Arrh", "Stroke", "Migraine"],
+        }
+    )
+
+    estimator = TreeConsensusEstimator(ontology=clinical_ontology, strategy="lca")
+    res = estimator.fit_predict(t)
+
+    assert res.backend_affinity == "ibis"
+    assert "Table" in type(res.to_native()).__name__
+    preds = dict(zip(res.item_ids, res.consensus_labels))
+    assert preds["i1"] == "Cardio"
+    assert preds["i2"] == "Neuro"
+
+
+def test_file_path_affinity_matches_loaded_engine(
+    tmp_path: pytest.TempPathFactory, clinical_ontology: Ontology
+) -> None:
+    csv_file = tmp_path / "annotations.csv"
+    csv_file.write_text(
+        "item_id,annotator_id,label_id\ni1,r1,CAD\ni1,r2,CAD\ni2,r1,Stroke\ni2,r2,Stroke\n"
+    )
+
+    ds = DawidSkeneEstimator(ontology=clinical_ontology)
+    res = ds.fit(str(csv_file))
+
+    # The file is loaded via normalize_to_narwhals, which uses Polars if installed, else Pandas
+    try:
+        import polars  # noqa: F401
+
+        expected_affinity = "polars"
+    except ImportError:
+        expected_affinity = "pandas"
+
+    assert res.backend_affinity == expected_affinity
+    assert res.to_native() is not None
+
+
+def test_consensus_result_to_native_unknown_fallback_to_pandas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pandas as pd
+
+    res = ConsensusResult(
+        item_ids=["i1"],
+        consensus_labels=["CAD"],
+        confidences=np.array([1.0]),
+        class_probabilities=np.array([[1.0]]),
+        classes=["CAD"],
+        backend_affinity="unknown",
+    )
+
+    # When polars import raises ImportError, to_native should gracefully fall back to pandas
+    import builtins
+
+    real_import = builtins.__import__
+
+    def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "polars":
+            raise ImportError("Mock no polars")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    df_out = res.to_native()
+    assert isinstance(df_out, pd.DataFrame)
+    assert df_out["consensus_label"].tolist() == ["CAD"]
