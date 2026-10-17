@@ -82,7 +82,7 @@ class ConsensusResult:
     def to_native(self) -> Any:
         """Export consensus predictions matching the caller's detected input backend.
 
-        Falls back to polars DataFrame if the originating backend was unknown.
+        Falls back to polars DataFrame if installed, or pandas DataFrame if polars is unavailable.
         """
         if self.backend_affinity == "pandas":
             return self.to_pandas()
@@ -94,7 +94,10 @@ class ConsensusResult:
             return self.to_ibis()
         if self.backend_affinity == "dict":
             return self.to_dict()
-        return self.to_polars()
+        try:
+            return self.to_polars()
+        except ImportError:
+            return self.to_pandas()
 
     def to_dict(self) -> dict[str, Any]:
         """Export summary results as a serializable Python dictionary."""

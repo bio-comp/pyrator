@@ -252,8 +252,19 @@
   - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
 
 - Opened PR `#49`: https://github.com/bio-comp/pyrator/pull/49
+- Completed critical self-code review (documented in `pyrator_pr49_critical_self_review.md`) and applied polish fixes:
+  - Added `resolve_affinity` to inspect loaded frames when raw input is a file path, ensuring `backend_affinity` accurately reflects the engine used by `normalize_to_narwhals`.
+  - Added safe fallback to `pandas` in `ConsensusResult.to_native()` if `polars` is not installed, preventing `ImportError` on minimal installations.
+  - Added test for `TreeConsensusEstimator` with native Ibis tables, closing the multi-backend test coverage gap.
+  - Added unit test verifying fallback to pandas when polars is absent.
+- Verification passed:
+  - `uv run pytest` -> 334 passed in 2.97s (83% coverage).
+  - `uv run ruff check pyrator/ tests/` -> All checks passed!
+  - `uv run ruff format --check pyrator/ tests/` -> All checks passed!
+  - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
 
 ## Next
+- Prompt user to commit and push updates to PR #49.
 - Await user review and merge of PR #49.
 - Local cleanup upon merge (checkout main, pull origin/main, delete branch issue/48-lazy-backend-audit).
 - Next items: AI Coding Agent Skills / MCP Calculation Server, Narwhals modernization for drift metrics, and Bayesian / causal inference.

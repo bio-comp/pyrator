@@ -10,8 +10,8 @@ import numpy as np
 from pyrator.consensus.result import ConsensusResult
 from pyrator.data.pipeline import (
     MaterializationBoundary,
-    detect_backend_affinity,
     normalize_to_narwhals,
+    resolve_affinity,
 )
 from pyrator.ontology.core import Ontology
 
@@ -41,8 +41,8 @@ class TreeConsensusEstimator:
         label_col: str = "label_id",
     ) -> ConsensusResult:
         """Compute consensus labels for items in the dataset."""
-        affinity = detect_backend_affinity(data, default="polars")
         nw_df = normalize_to_narwhals(data)
+        affinity = resolve_affinity(data, nw_df, default="polars")
         projected = nw_df.select([item_col, label_col]).drop_nulls()
         eager_df = MaterializationBoundary.to_eager(projected)
 

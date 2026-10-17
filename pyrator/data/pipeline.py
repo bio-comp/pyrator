@@ -50,6 +50,18 @@ def detect_backend_affinity(
     return "unknown"
 
 
+def resolve_affinity(
+    data: Any,
+    nw_df: Any,
+    default: BackendAffinity = "polars",
+) -> BackendAffinity:
+    """Resolve backend affinity from raw data, inspecting the loaded frame if raw was unknown."""
+    affinity = detect_backend_affinity(data)
+    if affinity == "unknown":
+        return detect_backend_affinity(nw_df, default=default)
+    return affinity
+
+
 def normalize_to_narwhals(data: Any) -> nw.DataFrame[Any] | nw.LazyFrame[Any]:
     """Normalize input to a Narwhals DataFrame or LazyFrame without unnecessary copies."""
     if isinstance(data, (nw.DataFrame, nw.LazyFrame)):
