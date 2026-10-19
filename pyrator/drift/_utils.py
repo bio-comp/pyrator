@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import narwhals.stable.v2 as nw
 import pandas as pd
 
 from pyrator.types import FrameLike
@@ -11,7 +12,23 @@ from pyrator.types import FrameLike
 
 def _to_pandas_frame(data: FrameLike) -> pd.DataFrame:
     """Convert supported frame-like inputs to pandas DataFrame."""
-    return data.to_pandas() if hasattr(data, "to_pandas") else data  # type: ignore[return-value]
+    if isinstance(data, (nw.DataFrame, nw.LazyFrame)):
+        if isinstance(data, nw.LazyFrame):
+            data = data.collect()
+        native = nw.to_native(data)
+    else:
+        native = data
+
+    if hasattr(native, "collect"):
+        native = native.collect()
+
+    if isinstance(native, pd.DataFrame):
+        return native
+    if hasattr(native, "to_pandas"):
+        return native.to_pandas()  # type: ignore[no-any-return]
+    if hasattr(native, "df"):
+        return native.df()  # type: ignore[no-any-return]
+    return pd.DataFrame(native)
 
 
 def create_result_dict(
