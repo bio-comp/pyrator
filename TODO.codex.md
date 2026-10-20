@@ -291,8 +291,11 @@
   - `uv run ruff format --check pyrator/ tests/` -> 79 files already formatted.
   - `uv run mypy pyrator/` -> Success: no issues found in 46 source files (0 strict errors).
 
+- Opened PR `#51`: https://github.com/bio-comp/pyrator/pull/51
+
 ## Next
-- Prompt user for confirmation to commit, push branch `issue/50-agent-calculation-mcp`, and open PR #51.
+- Await user review and merge of PR #51.
+- Local cleanup upon merge (checkout main, pull origin/main, delete branch issue/50-agent-calculation-mcp).
 - Modernize drift monitors and remaining IRA functions with Narwhals expressions.
 - Bayesian & causal inference module (Issue #12 bootstrap with hierarchical priors).
 
