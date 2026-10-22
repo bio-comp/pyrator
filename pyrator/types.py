@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, TypeVar, runtime_checkable
 
+import narwhals.stable.v2 as nw
 from narwhals.stable.v2.typing import IntoFrame
 
 if TYPE_CHECKING:
@@ -56,7 +57,9 @@ class IbisDataFrame:
 
 
 # IntoFrame supports Pandas, Polars (eager & lazy), PyArrow, DuckDB, cuDF, and Ibis natively.
-FrameLike: TypeAlias = IntoFrame | DataFrameProtocol | IbisDataFrame
+FrameLike: TypeAlias = (
+    IntoFrame | DataFrameProtocol | IbisDataFrame | nw.DataFrame[Any] | nw.LazyFrame[Any]
+)
 ArrayLike: TypeAlias = Any
 BackendAffinity: TypeAlias = Literal[
     "polars", "pandas", "arrow", "duckdb", "ibis", "dict", "unknown"

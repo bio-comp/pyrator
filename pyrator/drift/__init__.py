@@ -17,9 +17,14 @@ from pyrator.drift.monitor import (
 from pyrator.drift.psi import psi
 from pyrator.drift.wasserstein import w1
 
+# Common semantic aliases
+wasserstein_distance = w1
+cramers_v = cramer_v
+
 __all__ = [
     "psi",
     "cramer_v",
+    "cramers_v",
     "jsd",
     "w1",
     "wasserstein_distance",

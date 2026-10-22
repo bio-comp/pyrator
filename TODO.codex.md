@@ -262,11 +262,41 @@
   - `uv run ruff check pyrator/ tests/` -> All checks passed!
   - `uv run ruff format --check pyrator/ tests/` -> All checks passed!
   - `uv run mypy pyrator/` -> Success: no issues found in 44 source files (0 strict errors).
+- PR `#49` merged by user and remote branch deleted.
+- Local cleanup completed for `#49`:
+  - Checked out `main`.
+  - Pulled latest `origin/main` (fast-forward to `89c249f`).
+  - Deleted local branch `issue/48-lazy-backend-audit`.
+  - Audited and closed resolved backlog tickets `#34` and `#35`.
+
+- Opened Issue `#50`: feat(agent): AI coding agent skills, CLI calculators, and stdio MCP server for deterministic evaluation.
+- Created and switched to branch `issue/50-agent-calculation-mcp`.
+- Implemented Issue `#50`:
+  - Added `pyrator calculate` CLI subcommands (`agreement`, `consensus`, `drift`) in `pyrator/cli/calculate.py`.
+  - Added standard library JSON-RPC 2.0 stdio MCP server in `pyrator/mcp.py` providing `calculate_agreement`, `calculate_consensus`, `calculate_drift`, and `query_ontology_distance`.
+  - Mounted `calculate_app` and `@app.command("mcp")` in `pyrator/cli/__init__.py`.
+  - Exported `Node`, `Ontology`, and `truncate_id_to_depth` in `pyrator/ontology/__init__.py`.
+  - Exported `wasserstein_distance = w1` and `cramers_v = cramer_v` in `pyrator/drift/__init__.py`.
+  - Generalized `_to_pandas_frame` in `pyrator/drift/_utils.py` and `FrameLike` in `pyrator/types.py` to seamlessly accept Narwhals DataFrames and LazyFrames.
+  - Authored agent skill `.agents/skills/pyrator-calc/SKILL.md` documenting triggering conditions, CLI recipes, and MCP server configuration.
+  - Added comprehensive test suites: `tests/test_cli_calculate.py` and `tests/test_mcp.py`.
+- Completed critical self-code review (documented in `pyrator_pr51_critical_self_review.md`) and applied polish fixes:
+  - Supported hyphenated `--method dawid-skene` in both CLI and MCP schemas.
+  - Aligned drift metric alias `cramers_v` across CLI and MCP.
+  - Hardened MCP stdio server against non-dict requests and JSON decode errors with standard JSON-RPC 2.0 error responses.
+  - Expanded test suites in `tests/test_cli_calculate.py` and `tests/test_mcp.py` to cover table formatting, output files, two-rater Cohen's kappa, drift tools, and error paths.
+- Verification passed:
+  - `uv run pytest` -> 352 passed in 3.30s (83% coverage).
+  - `uv run ruff check pyrator/ tests/` -> All checks passed!
+  - `uv run ruff format --check pyrator/ tests/` -> 79 files already formatted.
+  - `uv run mypy pyrator/` -> Success: no issues found in 46 source files (0 strict errors).
+
+- Opened PR `#51`: https://github.com/bio-comp/pyrator/pull/51
 
 ## Next
-- Prompt user to commit and push updates to PR #49.
-- Await user review and merge of PR #49.
-- Local cleanup upon merge (checkout main, pull origin/main, delete branch issue/48-lazy-backend-audit).
-- Next items: AI Coding Agent Skills / MCP Calculation Server, Narwhals modernization for drift metrics, and Bayesian / causal inference.
+- Await user review and merge of PR #51.
+- Local cleanup upon merge (checkout main, pull origin/main, delete branch issue/50-agent-calculation-mcp).
+- Modernize drift monitors and remaining IRA functions with Narwhals expressions.
+- Bayesian & causal inference module (Issue #12 bootstrap with hierarchical priors).
 
 
