@@ -12,7 +12,7 @@ from pyrator.drift.jsd import jsd
 from pyrator.drift.mmd import mmd
 from pyrator.drift.psi import psi
 from pyrator.drift.wasserstein import w1
-from pyrator.types import require_non_none
+from pyrator.types import FrameLike, require_non_none
 
 
 @dataclass
@@ -92,7 +92,7 @@ class Monitor:
     def __init__(self, config: MonitorConfig):
         self.config = config
 
-    def execute(self, data: pd.DataFrame) -> pd.DataFrame | tuple[float, float]:
+    def execute(self, data: FrameLike) -> pd.DataFrame:
         """Execute the monitor on the provided data."""
         if isinstance(self.config, PsiMonitorConfig):
             return self._execute_psi(data)
@@ -106,12 +106,12 @@ class Monitor:
             return self._execute_mmd(data)
         raise ValueError(f"Unsupported metric: {type(self.config)}")
 
-    def _execute_psi(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _execute_psi(self, data: FrameLike) -> pd.DataFrame:
         cfg = cast(PsiMonitorConfig, self.config)
-        require_non_none(cfg.col, "PSI monitor requires 'col' parameter")
+        col = require_non_none(cfg.col, "PSI monitor requires 'col' parameter")
         return psi(
             data=data,
-            col=cfg.col,  # type: ignore[arg-type]
+            col=col,
             window_col=cfg.window_col,
             baseline=cfg.baseline,
             bins=cfg.bins,
@@ -121,26 +121,26 @@ class Monitor:
             eps=cfg.eps,
         )
 
-    def _execute_cramer_v(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _execute_cramer_v(self, data: FrameLike) -> pd.DataFrame:
         cfg = cast(CramerVMonitorConfig, self.config)
-        require_non_none(cfg.x, "CramerV monitor requires 'x' parameter")
-        require_non_none(cfg.y, "CramerV monitor requires 'y' parameter")
+        x = require_non_none(cfg.x, "CramerV monitor requires 'x' parameter")
+        y = require_non_none(cfg.y, "CramerV monitor requires 'y' parameter")
         return cramer_v(
             data=data,
-            x=cfg.x,  # type: ignore[arg-type]
-            y=cfg.y,  # type: ignore[arg-type]
+            x=x,
+            y=y,
             window_col=cfg.window_col,
             baseline=cfg.baseline,
             bias_correct=cfg.bias_correct,
             stratify=cfg.stratify,
         )
 
-    def _execute_jsd(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _execute_jsd(self, data: FrameLike) -> pd.DataFrame:
         cfg = cast(JsdMonitorConfig, self.config)
-        require_non_none(cfg.dist_cols, "JSD monitor requires 'dist_cols' parameter")
+        dist_cols = require_non_none(cfg.dist_cols, "JSD monitor requires 'dist_cols' parameter")
         return jsd(
             data=data,
-            dist_cols=cfg.dist_cols,  # type: ignore[arg-type]
+            dist_cols=dist_cols,
             window_col=cfg.window_col,
             baseline=cfg.baseline,
             groupby=cfg.groupby,
@@ -148,24 +148,24 @@ class Monitor:
             sqrt=cfg.sqrt,
         )
 
-    def _execute_wasserstein(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _execute_wasserstein(self, data: FrameLike) -> pd.DataFrame:
         cfg = cast(WassersteinMonitorConfig, self.config)
-        require_non_none(cfg.col, "Wasserstein monitor requires 'col' parameter")
+        col = require_non_none(cfg.col, "Wasserstein monitor requires 'col' parameter")
         return w1(
             data=data,
-            col=cfg.col,  # type: ignore[arg-type]
+            col=col,
             window_col=cfg.window_col,
             baseline=cfg.baseline,
             weight_type=cfg.weight_type,
             stratify=cfg.stratify,
         )
 
-    def _execute_mmd(self, data: pd.DataFrame) -> tuple[float, float]:
+    def _execute_mmd(self, data: FrameLike) -> pd.DataFrame:
         cfg = cast(MmdMonitorConfig, self.config)
-        require_non_none(cfg.emb_cols, "MMD monitor requires 'emb_cols' parameter")
-        return mmd(  # type: ignore[return-value]
+        emb_cols = require_non_none(cfg.emb_cols, "MMD monitor requires 'emb_cols' parameter")
+        return mmd(
             data=data,
-            emb_cols=cfg.emb_cols,  # type: ignore[arg-type]
+            emb_cols=emb_cols,
             window_col=cfg.window_col,
             baseline=cfg.baseline,
             kernel=cfg.kernel,

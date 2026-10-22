@@ -50,3 +50,22 @@ def test_jsd_invalid_inputs():
 
     with pytest.raises(ValueError, match="Distribution columns must sum to 1"):
         jsd(data, dist_cols=["dist"], window_col="window_id")
+
+
+def test_jsd_with_groupby() -> None:
+    """Test JSD calculation stratified by group."""
+    data = pd.DataFrame(
+        {
+            "window_id": ["baseline", "baseline", "current", "current"],
+            "group": ["g1", "g2", "g1", "g2"],
+            "dist_a": [0.5, 0.4, 0.7, 0.6],
+            "dist_b": [0.5, 0.6, 0.3, 0.4],
+        }
+    )
+
+    result = jsd(data, dist_cols=["dist_a", "dist_b"], window_col="window_id", groupby="group")
+
+    assert len(result) == 2
+    assert set(result["stratum"].apply(lambda d: d.get("group"))) == {"g1", "g2"}
+    assert all(result["metric"] == "jsd")
+    assert all(result["value"] >= 0)

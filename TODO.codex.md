@@ -292,11 +292,36 @@
   - `uv run mypy pyrator/` -> Success: no issues found in 46 source files (0 strict errors).
 
 - Opened PR `#51`: https://github.com/bio-comp/pyrator/pull/51
+- PR `#51` merged by user and remote branch deleted.
+- Local cleanup completed for `#51`:
+  - Checked out `main`.
+  - Pulled latest `origin/main` (fast-forward to `fd497ea`).
+  - Deleted local branch `issue/50-agent-calculation-mcp`.
+  - Closed resolved issue `#50`.
+
+- Created and switched to branch `issue/26-drift-module-cleanup`.
+- Implemented Issue `#26` (Drift monitoring module code cleanup: DRY and consistency fixes):
+  - Extracted `validate_windows` and `iter_window_strata` to `pyrator/drift/_utils.py` to eliminate duplicated window validation and stratification loops.
+  - Refactored `psi.py`, `cramer_v.py`, `wasserstein.py`, `mmd.py`, and `jsd.py` to use shared window and strata iteration logic.
+  - Unified `Monitor.execute()` signature to accept `FrameLike` (Polars, Narwhals, DuckDB, Arrow, Pandas) and return `pd.DataFrame` consistently across all metrics.
+  - Corrected `Monitor._execute_mmd` signature and eliminated stale `# type: ignore` suppressions across monitor dispatchers.
+  - Added comprehensive test suites: `tests/drift/test_utils.py` for window validation and strata iteration, `test_monitor_execute_all_metrics` in `tests/drift/test_monitor_config.py`, and `test_jsd_with_groupby` in `tests/drift/test_jsd.py`.
+  - Conducted critical self-code review and resolved edge cases:
+    - Missing `window_col` validation in `validate_windows` raising descriptive `ValueError`.
+    - String deduplication in `validate_windows` preventing mixed-type false positives.
+    - Missing-value (`NaN`/`None`) handling in `iter_window_strata` ensuring complete strata coverage.
+    - Precomputed string window series once per stratum iteration.
+- Verification passed:
+  - `uv run pytest` -> 364 passed in 4.55s (86% coverage).
+  - `uv run ruff check pyrator/ tests/` -> All checks passed!
+  - `uv run ruff format --check pyrator/ tests/` -> 80 files already formatted.
+  - `uv run mypy pyrator/` -> Success: no issues found in 46 source files (0 strict errors).
 
 ## Next
-- Await user review and merge of PR #51.
-- Local cleanup upon merge (checkout main, pull origin/main, delete branch issue/50-agent-calculation-mcp).
-- Modernize drift monitors and remaining IRA functions with Narwhals expressions.
+- Modernize drift monitors and remaining IRA functions with Narwhals expressions (Issue #14 audit & expression refactor).
 - Bayesian & causal inference module (Issue #12 bootstrap with hierarchical priors).
+- Issue #11: Align semantic metric formulas with README (Resnik, Lin, Jaccard distance).
+- Issue #21: Optional opt-in auto-drop for incomplete items in Fleiss kappa.
+
 
 
