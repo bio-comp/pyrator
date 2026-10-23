@@ -316,6 +316,7 @@
   - `uv run ruff check pyrator/ tests/` -> All checks passed!
   - `uv run ruff format --check pyrator/ tests/` -> 80 files already formatted.
   - `uv run mypy pyrator/` -> Success: no issues found in 46 source files (0 strict errors).
+- Opened PR `#52`: https://github.com/bio-comp/pyrator/pull/52
 
 ## Next
 - Modernize drift monitors and remaining IRA functions with Narwhals expressions (Issue #14 audit & expression refactor).
