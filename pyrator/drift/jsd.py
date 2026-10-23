@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from pyrator.drift._utils import _to_pandas_frame, create_result_dict
+from pyrator.drift._utils import (
+    _to_pandas_frame,
+    create_result_dict,
+    iter_window_strata,
+    validate_windows,
+)
 from pyrator.types import FrameLike
 
 
@@ -58,64 +63,26 @@ def jsd(  # noqa: C901
     if not np.allclose(row_sums, 1.0, atol=1e-3):
         raise ValueError("Distribution columns must sum to 1 for each row")
 
-    # Get unique windows
-    windows = df[window_col].unique()
-    if len(windows) < 2:
-        raise ValueError("JSD requires at least 2 different windows")
-
-    # Determine baseline window
-    if baseline is not None:
-        if baseline not in windows:
-            raise ValueError(f"Baseline window '{baseline}' not found in data")
-        baseline_window = baseline
-    else:
-        baseline_window = windows[0]
-
-    current_windows = [w for w in windows if w != baseline_window]
+    baseline_window, current_windows = validate_windows(
+        df, window_col=window_col, baseline=baseline, metric_name="JSD"
+    )
 
     results = []
+    stratify = [groupby] if groupby is not None else None
 
     for current_window in current_windows:
-        if groupby:
-            baseline_groups = df[df[window_col] == baseline_window][groupby].unique()
-
-            for group_value in baseline_groups:
-                baseline_data = df[
-                    (df[window_col] == baseline_window) & (df[groupby] == group_value)
-                ]
-                current_data = df[(df[window_col] == current_window) & (df[groupby] == group_value)]
-
-                if len(baseline_data) == 0 or len(current_data) == 0:
-                    continue
-
-                baseline_dist = np.asarray(
-                    baseline_data[dist_cols].mean().to_numpy(), dtype=np.float64
-                )
-                current_dist = np.asarray(
-                    current_data[dist_cols].mean().to_numpy(), dtype=np.float64
-                )
-
-                jsd_value = _calculate_jsd(baseline_dist, current_dist, eps)
-                if sqrt:
-                    jsd_value = np.sqrt(jsd_value)
-
-                result = create_result_dict(
-                    monitor_id=f"jsd_{'_'.join(dist_cols)}",
-                    window_id=current_window,
-                    metric="jsd",
-                    value=jsd_value,
-                    stratum={groupby: group_value},
-                )
-                results.append(result)
-        else:
-            baseline_data = df[df[window_col] == baseline_window]
-            current_data = df[df[window_col] == current_window]
-
-            if len(baseline_data) == 0 or len(current_data) == 0:
+        for b_df, c_df, stratum in iter_window_strata(
+            df,
+            window_col=window_col,
+            baseline_window=baseline_window,
+            current_window=current_window,
+            stratify=stratify,
+        ):
+            if len(b_df) == 0 or len(c_df) == 0:
                 continue
 
-            baseline_dist = np.asarray(baseline_data[dist_cols].mean().to_numpy(), dtype=np.float64)
-            current_dist = np.asarray(current_data[dist_cols].mean().to_numpy(), dtype=np.float64)
+            baseline_dist = np.asarray(b_df[dist_cols].mean().to_numpy(), dtype=np.float64)
+            current_dist = np.asarray(c_df[dist_cols].mean().to_numpy(), dtype=np.float64)
 
             jsd_value = _calculate_jsd(baseline_dist, current_dist, eps)
             if sqrt:
@@ -126,6 +93,7 @@ def jsd(  # noqa: C901
                 window_id=current_window,
                 metric="jsd",
                 value=jsd_value,
+                stratum=stratum,
             )
             results.append(result)
 

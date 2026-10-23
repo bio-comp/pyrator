@@ -7,7 +7,12 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from pyrator.drift._utils import _to_pandas_frame, create_result_dict
+from pyrator.drift._utils import (
+    _to_pandas_frame,
+    create_result_dict,
+    iter_window_strata,
+    validate_windows,
+)
 from pyrator.types import FrameLike
 
 
@@ -71,20 +76,9 @@ def mmd(  # noqa: C901
         if rc not in df.columns:
             raise ValueError(f"Column '{rc}' not found in data")
 
-    # Get unique windows
-    windows = df[window_col].unique()
-    if len(windows) < 2:
-        raise ValueError("MMD requires at least 2 different windows")
-
-    # Determine baseline window
-    if baseline is not None:
-        if baseline not in windows:
-            raise ValueError(f"Baseline window '{baseline}' not found in data")
-        baseline_window = baseline
-    else:
-        baseline_window = windows[0]
-
-    current_windows = [w for w in windows if w != baseline_window]
+    baseline_window, current_windows = validate_windows(
+        df, window_col=window_col, baseline=baseline, metric_name="MMD"
+    )
 
     # Set random seed for reproducibility
     if seed is not None:
@@ -93,46 +87,15 @@ def mmd(  # noqa: C901
     results = []
 
     for current_window in current_windows:
-        if stratify:
-            baseline_strata = df[df[window_col] == baseline_window][stratify].drop_duplicates()
-
-            for _, stratum_row in baseline_strata.iterrows():
-                stratum_cond = np.ones(len(df), dtype=bool)
-                for stratum_col in stratify:
-                    stratum_cond &= df[stratum_col] == stratum_row[stratum_col]
-
-                stratum_baseline = df[stratum_cond & (df[window_col] == baseline_window)]
-                stratum_current = df[stratum_cond & (df[window_col] == current_window)]
-
-                if len(stratum_baseline) == 0 or len(stratum_current) == 0:
-                    continue
-
-                baseline_emb = stratum_baseline[emb_cols].values
-                current_emb = stratum_current[emb_cols].values
-
-                if len(baseline_emb) < 2 or len(current_emb) < 2:
-                    continue
-
-                mmd_stat, p_value = _calculate_mmd(baseline_emb, current_emb, kernel, sigma, n_perm)
-
-                result = create_result_dict(
-                    monitor_id=f"mmd_{'_'.join(emb_cols)}",
-                    window_id=current_window,
-                    metric="mmd",
-                    value=mmd_stat,
-                    stratum={str(k): v for k, v in stratum_row.items()},
-                    p_value=p_value,
-                )
-                results.append(result)
-        else:
-            baseline_data = df[df[window_col] == baseline_window]
-            current_data = df[df[window_col] == current_window]
-
-            if len(baseline_data) == 0 or len(current_data) == 0:
-                continue
-
-            baseline_emb = baseline_data[emb_cols].values
-            current_emb = current_data[emb_cols].values
+        for b_df, c_df, stratum in iter_window_strata(
+            df,
+            window_col=window_col,
+            baseline_window=baseline_window,
+            current_window=current_window,
+            stratify=stratify,
+        ):
+            baseline_emb = b_df[emb_cols].values
+            current_emb = c_df[emb_cols].values
 
             if len(baseline_emb) < 2 or len(current_emb) < 2:
                 continue
@@ -144,6 +107,7 @@ def mmd(  # noqa: C901
                 window_id=current_window,
                 metric="mmd",
                 value=mmd_stat,
+                stratum=stratum,
                 p_value=p_value,
             )
             results.append(result)

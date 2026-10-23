@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency
 
-from pyrator.drift._utils import _to_pandas_frame, create_result_dict
+from pyrator.drift._utils import (
+    _to_pandas_frame,
+    create_result_dict,
+    iter_window_strata,
+    validate_windows,
+)
 from pyrator.types import FrameLike
 
 
@@ -53,67 +58,27 @@ def cramer_v(  # noqa: C901
         if rc not in df.columns:
             raise ValueError(f"Column '{rc}' not found in data")
 
-    # Get unique windows
-    windows = df[window_col].unique()
-    if len(windows) < 2:
-        raise ValueError("Cramér's V requires at least 2 different windows")
-
-    # Determine baseline window
-    if baseline is not None:
-        if baseline not in windows:
-            raise ValueError(f"Baseline window '{baseline}' not found in data")
-        baseline_window = baseline
-    else:
-        baseline_window = windows[0]
-
-    current_windows = [w for w in windows if w != baseline_window]
+    baseline_window, current_windows = validate_windows(
+        df, window_col=window_col, baseline=baseline, metric_name="Cramér's V"
+    )
 
     results = []
 
     for current_window in current_windows:
-        if stratify:
-            baseline_strata = df[df[window_col] == baseline_window][stratify].drop_duplicates()
+        for b_df, c_df, stratum in iter_window_strata(
+            df,
+            window_col=window_col,
+            baseline_window=baseline_window,
+            current_window=current_window,
+            stratify=stratify,
+        ):
+            b_x, b_y = b_df[x], b_df[y]
+            c_x, c_y = c_df[x], c_df[y]
+            if len(b_x) == 0 or len(c_x) == 0:
+                continue
 
-            for _, stratum_row in baseline_strata.iterrows():
-                stratum_cond = np.ones(len(df), dtype=bool)
-                for stratum_col in stratify:
-                    stratum_cond &= df[stratum_col] == stratum_row[stratum_col]
-
-                stratum_baseline = df[stratum_cond & (df[window_col] == baseline_window)]
-                stratum_current = df[stratum_cond & (df[window_col] == current_window)]
-
-                if len(stratum_baseline) == 0 or len(stratum_current) == 0:
-                    continue
-
-                baseline_v, _, _, _, _ = _calculate_cramers_v(
-                    stratum_baseline[x], stratum_baseline[y], bias_correct
-                )
-                current_v, _, _, _, _ = _calculate_cramers_v(
-                    stratum_current[x], stratum_current[y], bias_correct
-                )
-
-                delta_v = current_v - baseline_v
-
-                result = create_result_dict(
-                    monitor_id=f"cramer_v_{x}_{y}",
-                    window_id=current_window,
-                    metric="cramer_v",
-                    value=current_v,
-                    delta_from_baseline=delta_v,
-                    stratum={str(k): v for k, v in stratum_row.items()},
-                )
-                results.append(result)
-        else:
-            baseline_data = df[df[window_col] == baseline_window]
-            current_data = df[df[window_col] == current_window]
-
-            baseline_v, _, _, _, _ = _calculate_cramers_v(
-                baseline_data[x], baseline_data[y], bias_correct
-            )
-            current_v, _, _, _, _ = _calculate_cramers_v(
-                current_data[x], current_data[y], bias_correct
-            )
-
+            baseline_v, _, _, _, _ = _calculate_cramers_v(b_x, b_y, bias_correct)
+            current_v, _, _, _, _ = _calculate_cramers_v(c_x, c_y, bias_correct)
             delta_v = current_v - baseline_v
 
             result = create_result_dict(
@@ -122,6 +87,7 @@ def cramer_v(  # noqa: C901
                 metric="cramer_v",
                 value=current_v,
                 delta_from_baseline=delta_v,
+                stratum=stratum,
             )
             results.append(result)
 

@@ -7,7 +7,12 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from pyrator.drift._utils import _to_pandas_frame, create_result_dict
+from pyrator.drift._utils import (
+    _to_pandas_frame,
+    create_result_dict,
+    iter_window_strata,
+    validate_windows,
+)
 from pyrator.types import FrameLike
 
 
@@ -156,64 +161,32 @@ def psi(  # noqa: C901
         if rc not in df.columns:
             raise ValueError(f"Column '{rc}' not found in data")
 
-    # Get unique windows
-    windows = df[window_col].unique()
-    if len(windows) < 2:
-        raise ValueError("PSI requires at least 2 different windows")
-
-    # Determine baseline window
-    if baseline is not None:
-        if baseline not in windows:
-            raise ValueError(f"Baseline window '{baseline}' not found in data")
-        baseline_window = baseline
-    else:
-        baseline_window = windows[0]
-
-    current_windows = [w for w in windows if w != baseline_window]
+    baseline_window, current_windows = validate_windows(
+        df, window_col=window_col, baseline=baseline, metric_name="PSI"
+    )
 
     results = []
 
     for current_window in current_windows:
-        baseline_data = df[df[window_col] == baseline_window][col]
-        current_data = df[df[window_col] == current_window][col]
-
-        if stratify:
-            baseline_strata = df[df[window_col] == baseline_window][stratify].drop_duplicates()
-
-            for _, stratum_row in baseline_strata.iterrows():
-                stratum_cond = np.ones(len(df), dtype=bool)
-                for stratum_col in stratify:
-                    stratum_cond &= df[stratum_col] == stratum_row[stratum_col]
-
-                stratum_baseline = df[stratum_cond & (df[window_col] == baseline_window)][col]
-                stratum_current = df[stratum_cond & (df[window_col] == current_window)][col]
-
-                if len(stratum_baseline) == 0 or len(stratum_current) == 0:
-                    continue
-
-                psi_value = _calculate_psi(
-                    stratum_baseline, stratum_current, bins, n_bins, cutpoints, eps
-                )
-
-                result = create_result_dict(
-                    monitor_id=f"psi_{col}",
-                    window_id=current_window,
-                    metric="psi",
-                    value=psi_value,
-                    stratum={str(k): v for k, v in stratum_row.items()},
-                )
-                results.append(result)
-        else:
-            if len(baseline_data) == 0 or len(current_data) == 0:
+        for b_df, c_df, stratum in iter_window_strata(
+            df,
+            window_col=window_col,
+            baseline_window=baseline_window,
+            current_window=current_window,
+            stratify=stratify,
+        ):
+            b_series = b_df[col]
+            c_series = c_df[col]
+            if len(b_series) == 0 or len(c_series) == 0:
                 continue
 
-            psi_value = _calculate_psi(baseline_data, current_data, bins, n_bins, cutpoints, eps)
-
+            psi_value = _calculate_psi(b_series, c_series, bins, n_bins, cutpoints, eps)
             result = create_result_dict(
                 monitor_id=f"psi_{col}",
                 window_id=current_window,
                 metric="psi",
                 value=psi_value,
+                stratum=stratum,
             )
             results.append(result)
 
